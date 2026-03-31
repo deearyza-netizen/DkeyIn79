@@ -7,12 +7,52 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>DKeyIn — Attendance</title>
-<!-- Supabase Client -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, setDoc, doc, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCTFinGzQkcG20WedIrsQsXeKOqZxJpX5Y",
+    authDomain: "dkeyin-attendance.firebaseapp.com",
+    projectId: "dkeyin-attendance",
+    storageBucket: "dkeyin-attendance.firebasestorage.app",
+    messagingSenderId: "650704619552",
+    appId: "1:650704619552:web:11ae5d401dbdee506a9445"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+
+  window._fbDb = db;
+  window._fb   = { collection, addDoc, getDocs, updateDoc, deleteDoc, setDoc, doc, query, where, orderBy };
+
+  // Jika dibuka via file:// (lokal), skip Auth — langsung ready
+  if (location.protocol === 'file:') {
+    window._fbReady = true;
+    window._fbUid   = 'local-user';
+    console.log('✅ Firebase siap (mode lokal, Auth di-skip)');
+  } else {
+    const auth = getAuth(app);
+    window._fbAuth = auth;
+    signInAnonymously(auth).catch(e => console.error('Auth error:', e));
+    onAuthStateChanged(auth, user => {
+      if (user) {
+        window._fbReady = true;
+        window._fbUid   = user.uid;
+        console.log('✅ Firebase Auth OK — UID:', user.uid);
+      } else {
+        window._fbReady = false;
+      }
+    });
+  }
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=DM+Mono:wght@400;500&family=Inter:wght@300;400;500;600;700&family=Lato:ital,wght@0,300;0,400;0,700;1,400&family=Nunito:wght@300;400;500;600;700&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Raleway:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <style>
 /* ════════════════════════════════
@@ -283,26 +323,6 @@ button { cursor: pointer; }
 [data-theme="light"] .numpad-btn:active { background: rgba(201,168,92,0.08); }
 .login-hint span { color: var(--accent); }
 
-/* ── FINGERPRINT BUTTON ── */
-.fp-login-btn {
-  display: flex; align-items: center; justify-content: center;
-  gap: 10px;
-  width: 100%; padding: 14px;
-  margin-top: 12px;
-  background: rgba(201,168,92,0.06);
-  border: 1px solid rgba(201,168,92,0.25);
-  border-radius: 13px;
-  color: var(--accent);
-  font-size: 14px; font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s, transform 0.12s, border-color 0.2s;
-  font-family: inherit;
-  letter-spacing: 0.3px;
-}
-.fp-login-btn:active { transform: scale(0.97); background: rgba(201,168,92,0.12); }
-.fp-login-btn:disabled { opacity: 0.4; pointer-events: none; }
-.fp-login-btn svg { flex-shrink: 0; }
-[data-theme="light"] .fp-login-btn { background: rgba(201,168,92,0.07); }
 
 /* ── SECURITY FALLBACK BANNER ── */
 .login-security-banner {
@@ -1020,11 +1040,12 @@ body.pc-view .log-filter-card { max-width: 100%; }
 /* ════════════════════════════════
    USER MANAGEMENT
 ════════════════════════════════ */
-.user-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.user-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
 .user-item {
   display: flex; align-items: center; gap: 12px;
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 12px; padding: 11px 13px;
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 14px; padding: 12px 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
 }
 .user-avatar {
   width: 36px; height: 36px; border-radius: 10px;
@@ -1401,63 +1422,15 @@ th { padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 700; tex
 td { padding: 10px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--text); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 </style>
-<!-- localStorage backend — no network required -->
+<!-- All data stored locally — no backend required -->
 <script>
+'use strict';
 // ════════════════════════════════════════
-//  SUPABASE CONFIGURATION (OPTIONAL)
-//  Uncomment dan isi credentials untuk menggunakan Supabase
-//  Jika tidak diisi, akan menggunakan localStorage
+//  LOCAL DATABASE
+//  All app data is stored in localStorage.
+//  Collections: records, staff, shifts, logins, settings, schedules
 // ════════════════════════════════════════
-
-// 🔧 CREDENTIALS SUPABASE ANDA
-const SUPABASE_ENABLED = true; // ✅ Supabase AKTIF
-const SUPABASE_URL = 'https://vlnikaugtkcpblckfvsf.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsbmlrYXVndGtjcGJsY2tmdnNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyOTE0ODYsImV4cCI6MjA4OTg2NzQ4Nn0.WYjqUESFFm-E2lynl3QefHnJ4jQzTwRCZYq_lS9Z1IA';
-
-let supabaseClient = null;
-let currentUser = null;
-let userProfile = null;
-
-// Initialize Supabase client jika enabled
-if (SUPABASE_ENABLED && SUPABASE_URL && SUPABASE_ANON_KEY) {
-  try {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    console.log('✅ Supabase client initialized');
-  } catch(e) {
-    console.error('❌ Supabase initialization failed:', e);
-  }
-}
-
-// ════════════════════════════════════════
-//  LOCAL STORAGE DATABASE
-//  Drop-in replacement for Supabase client.
-//  All data lives in localStorage under key 'hat_db'.
-//  API surface matches the old sbQuery pattern:
-//    { data, error } — error is always null on success.
-// ════════════════════════════════════════
-
-// ── DB schema / initial seed ──
 const DB_KEY = 'hat_db';
-
-function _dbLoad() {
-  try { return JSON.parse(localStorage.getItem(DB_KEY)) || _dbEmpty(); }
-  catch(_) { return _dbEmpty(); }
-}
-
-function _dbEmpty() {
-  return {
-    attendance_records: [],
-    staff: [],
-    shifts: [],
-    departments: [],
-    app_settings: [],
-    schedules: []
-  };
-}
-
-function _dbSave(db) {
-  try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch(e) { console.error('[db save]', e); }
-}
 
 function _uuid() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -1466,175 +1439,224 @@ function _uuid() {
   });
 }
 
-// ── Query builder — mimics Supabase chained API ──
-function _query(table) {
-  const db = _dbLoad();
-  let rows = (db[table] || []).map(r => ({ ...r }));
-  let _filters = [];
-  let _orderCol = null, _orderAsc = true;
-  let _limitN = null;
-  let _single = false;
-  let _maybeSingle = false;
-  let _selectCols = null; // null = all
+function _dbLoad() {
+  try { return JSON.parse(localStorage.getItem(DB_KEY)) || _dbEmpty(); }
+  catch (_) { return _dbEmpty(); }
+}
 
-  const apply = () => {
-    let res = rows;
-    for (const f of _filters) res = res.filter(f);
-    if (_orderCol) {
-      res = [...res].sort((a, b) => {
-        const av = a[_orderCol] ?? '', bv = b[_orderCol] ?? '';
-        return _orderAsc ? (av < bv ? -1 : av > bv ? 1 : 0) : (av > bv ? -1 : av < bv ? 1 : 0);
+function _dbEmpty() {
+  return { records: [], staff: [], shifts: [], logins: [], settings: [], schedules: [] };
+}
+
+function _dbSave(db) {
+  try { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
+  catch (e) { console.error('[DB]', e); }
+}
+
+// Migrate old collection names from legacy format (one-time on load)
+function _migrateDB() {
+  try {
+    const raw = localStorage.getItem(DB_KEY);
+    if (!raw) return;
+    const db = JSON.parse(raw);
+    let changed = false;
+    const renames = { attendance_records: 'records', departments: 'logins', app_settings: 'settings' };
+    for (const [o, n] of Object.entries(renames)) {
+      if (db[o] !== undefined && db[n] === undefined) { db[n] = db[o]; delete db[o]; changed = true; }
+    }
+    if (changed) localStorage.setItem(DB_KEY, JSON.stringify(db));
+  } catch (_) {}
+}
+_migrateDB();
+
+// ══════════════════════════════════════════
+//  A4 — Wait helper: tunggu Firebase siap
+// ══════════════════════════════════════════
+async function _waitFirebase() {
+  let attempts = 0;
+  while (!window._fbReady && attempts < 20) {
+    await new Promise(r => setTimeout(r, 300));
+    attempts++;
+  }
+  if (!window._fbReady) throw new Error('Firebase tidak siap (timeout)');
+}
+
+// ══════════════════════════════════════════
+//  M1 — MIGRASI localStorage → Firestore
+// ══════════════════════════════════════════
+async function migrateLocalStorageToFirestore() {
+  const alreadyMigrated = localStorage.getItem('hat_migrated_to_firestore');
+  if (alreadyMigrated === '1') { console.log('✅ Migrasi sudah dilakukan, skip.'); return; }
+  const rawDb = localStorage.getItem('hat_db');
+  if (!rawDb) {
+    console.log('ℹ️ Tidak ada data localStorage untuk dimigrasi.');
+    localStorage.setItem('hat_migrated_to_firestore', '1');
+    return;
+  }
+  let oldDb;
+  try { oldDb = JSON.parse(rawDb); } catch (e) { console.error('❌ Gagal parse localStorage:', e); return; }
+  if (typeof toast === 'function') toast('🔄 Migrasi data ke Firestore...', 'info');
+  console.log('🔄 Mulai migrasi localStorage → Firestore...');
+  const collections = ['records', 'staff', 'shifts', 'logins', 'schedules', 'settings'];
+  let totalMigrated = 0;
+  for (const col of collections) {
+    const rows = oldDb[col];
+    if (!rows || !rows.length) { console.log(`  ⏭ "${col}" kosong, skip.`); continue; }
+    console.log(`  📦 Migrasi "${col}": ${rows.length} dok...`);
+    try {
+      for (const row of rows) {
+        const payload = { ...row };
+        Object.keys(payload).forEach(k => { if (payload[k] === undefined) payload[k] = null; });
+        const colRef = window._fb.collection(window._fbDb, col);
+        if (payload.id) {
+          const docRef = window._fb.doc(window._fbDb, col, String(payload.id));
+          await window._fb.setDoc(docRef, payload);
+        } else {
+          await window._fb.addDoc(colRef, payload);
+        }
+        totalMigrated++;
+      }
+      console.log(`  ✅ "${col}" selesai`);
+    } catch (e) { console.error(`  ❌ Gagal migrasi "${col}":`, e); }
+  }
+  localStorage.setItem('hat_migrated_to_firestore', '1');
+  console.log(`✅ Migrasi selesai! Total: ${totalMigrated} dokumen.`);
+  if (typeof toast === 'function') toast(`✅ Migrasi selesai! ${totalMigrated} data → Firestore`, 'success');
+}
+
+// ══════════════════════════════════════════
+//  M3 — Panggil migrasi saat app start
+// ══════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    await _waitFirebase();
+    await migrateLocalStorageToFirestore();
+  } catch (e) { console.warn('Migrasi skip:', e.message); }
+});
+
+// Get all rows from a collection
+async function dbGetAll(col, filterFn, orderCol, orderAsc) {
+  await _waitFirebase();
+  try {
+    const colRef = window._fb.collection(window._fbDb, col);
+    const snapshot = await window._fb.getDocs(colRef);
+    let rows = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (filterFn) rows = rows.filter(filterFn);
+    if (orderCol) {
+      rows = rows.sort((a, b) => {
+        const av = a[orderCol] ?? '', bv = b[orderCol] ?? '';
+        const asc = orderAsc !== false;
+        return asc ? (av < bv ? -1 : av > bv ? 1 : 0) : (av > bv ? -1 : av < bv ? 1 : 0);
       });
     }
-    if (_limitN !== null) res = res.slice(0, _limitN);
-    if (_selectCols && _selectCols !== '*') {
-      const cols = _selectCols.split(',').map(s => s.trim());
-      res = res.map(r => Object.fromEntries(cols.map(c => [c, r[c]])));
-    }
-    if (_single) return res[0] ?? null;
-    if (_maybeSingle) return res[0] ?? null;
-    return res;
-  };
-
-  const q = {
-    select(cols) { _selectCols = cols; return q; },
-    eq(col, val) { _filters.push(r => String(r[col]) === String(val)); return q; },
-    neq(col, val) { _filters.push(r => String(r[col]) !== String(val)); return q; },
-    is(col, val) {
-      _filters.push(r => val === null ? (r[col] === null || r[col] === undefined) : r[col] === val);
-      return q;
-    },
-    gte(col, val) { _filters.push(r => r[col] >= val); return q; },
-    lte(col, val) { _filters.push(r => r[col] <= val); return q; },
-    order(col, opts) { _orderCol = col; _orderAsc = !(opts?.ascending === false); return q; },
-    limit(n) { _limitN = n; return q; },
-    single() { _single = true; return q; },
-    maybeSingle() { _maybeSingle = true; return q; },
-
-    // Terminal operations — return {data, error}
-    then(resolve) {
-      resolve({ data: apply(), error: null });
-      return { catch() {} };
-    },
-
-    // Explicit await support
-    [Symbol.toStringTag]: 'Promise',
-  };
-
-  // Make q awaitable
-  q.then = (resolve, reject) => Promise.resolve({ data: apply(), error: null }).then(resolve, reject);
-
-  return q;
-}
-
-// ── Fake Supabase client (sb) ──
-const sb = {
-  from(table) {
-    const db = _dbLoad();
-    if (!db[table]) db[table] = [];
-
-    return {
-      select: (cols) => {
-        const q = _query(table);
-        return cols ? q.select(cols) : q;
-      },
-
-      insert(rowOrRows) {
-        const rows = Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows];
-        const db2 = _dbLoad();
-        if (!db2[table]) db2[table] = [];
-        const now = new Date().toISOString();
-        const inserted = rows.map(r => ({
-          ...r,
-          id: r.id || _uuid(),
-          created_at: r.created_at || now,
-          updated_at: r.updated_at || now,
-        }));
-        db2[table].push(...inserted);
-        _dbSave(db2);
-        return Promise.resolve({ data: inserted, error: null });
-      },
-
-      update(patch) {
-        let _filters = [];
-        const u = {
-          eq(col, val)  { _filters.push(r => String(r[col]) === String(val)); return u; },
-          neq(col, val) { _filters.push(r => String(r[col]) !== String(val)); return u; },
-          then(resolve, reject) {
-            const db2 = _dbLoad();
-            if (!db2[table]) db2[table] = [];
-            const now = new Date().toISOString();
-            db2[table] = db2[table].map(r => {
-              if (_filters.every(f => f(r))) return { ...r, ...patch, updated_at: now };
-              return r;
-            });
-            _dbSave(db2);
-            return Promise.resolve({ data: null, error: null }).then(resolve, reject);
-          }
-        };
-        return u;
-      },
-
-      delete() {
-        let _filters = [];
-        const d = {
-          eq(col, val)  { _filters.push(r => String(r[col]) === String(val)); return d; },
-          neq(col, val) { _filters.push(r => String(r[col]) !== String(val)); return d; },
-          then(resolve, reject) {
-            const db2 = _dbLoad();
-            if (!db2[table]) db2[table] = [];
-            db2[table] = _filters.length
-              ? db2[table].filter(r => !_filters.every(f => f(r)))
-              : [];
-            _dbSave(db2);
-            return Promise.resolve({ data: null, error: null }).then(resolve, reject);
-          }
-        };
-        return d;
-      },
-
-      upsert(rowOrRows, opts) {
-        const rows = Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows];
-        const db2 = _dbLoad();
-        if (!db2[table]) db2[table] = [];
-        const now = new Date().toISOString();
-        rows.forEach(row => {
-          // For app_settings: upsert by key; for schedules and others with explicit id: upsert by id
-          const matchKey = table === 'app_settings' ? 'key' : 'id';
-          const idx = db2[table].findIndex(r => r[matchKey] === row[matchKey]);
-          const newRow = { ...row, updated_at: now };
-          if (!newRow.id) newRow.id = _uuid();
-          if (!newRow.created_at) newRow.created_at = now;
-          if (idx >= 0) db2[table][idx] = { ...db2[table][idx], ...newRow };
-          else db2[table].push(newRow);
-        });
-        _dbSave(db2);
-        return Promise.resolve({ data: rows, error: null });
-      },
-    };
-  }
-};
-
-// ── sbQuery — pass-through (localStorage never fails) ──
-async function sbQuery(queryFn) {
-  try {
-    const result = await queryFn();
-    return result && result.error !== undefined
-      ? result
-      : { data: result, error: null };
+    return rows;
   } catch (e) {
-    console.error('[sbQuery]', e);
-    return { data: null, error: { message: e.message } };
+    console.error('dbGetAll error:', e);
+    return [];
   }
 }
 
-function sbErr(error) {
-  if (error) {
-    console.error('[DB Error]', error.message || error);
-    setTimeout(() => {
-      if (typeof toast === 'function') toast('⚠️ ' + (error.message || 'DB error'), 'error');
-    }, 0);
+// Get first matching row
+async function dbGetOne(col, filterFn) {
+  const rows = await dbGetAll(col, filterFn);
+  return rows[0] ?? null;
+}
+
+// Insert one or more rows
+async function dbInsert(col, rowOrRows) {
+  await _waitFirebase();
+  const rows = Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows];
+  const now = new Date().toISOString();
+  const inserted = [];
+  try {
+    const colRef = window._fb.collection(window._fbDb, col);
+    for (const r of rows) {
+      const payload = {
+        ...r,
+        created_at: r.created_at || now,
+        updated_at: r.updated_at || now,
+      };
+      delete payload.id; // Firestore generates its own ID
+      const docRef = await window._fb.addDoc(colRef, payload);
+      inserted.push({ ...payload, id: docRef.id });
+    }
+    return inserted;
+  } catch (e) {
+    console.error('dbInsert error:', e);
+    throw e;
   }
+}
+
+// Update rows matching filterFn with patch object
+async function dbUpdate(col, filterFn, patch) {
+  await _waitFirebase();
+  try {
+    const colRef = window._fb.collection(window._fbDb, col);
+    const snapshot = await window._fb.getDocs(colRef);
+    const now = new Date().toISOString();
+    const toUpdate = snapshot.docs.filter(d => filterFn({ id: d.id, ...d.data() }));
+    for (const docSnap of toUpdate) {
+      const docRef = window._fb.doc(window._fbDb, col, docSnap.id);
+      await window._fb.updateDoc(docRef, { ...patch, updated_at: now });
+    }
+  } catch (e) {
+    console.error('dbUpdate error:', e);
+    throw e;
+  }
+}
+
+// Delete rows matching filterFn (no filterFn = clear entire collection)
+async function dbDelete(col, filterFn) {
+  await _waitFirebase();
+  try {
+    const colRef = window._fb.collection(window._fbDb, col);
+    const snapshot = await window._fb.getDocs(colRef);
+    const { deleteDoc, doc: fbDoc } = window._fb;
+    const toDelete = filterFn
+      ? snapshot.docs.filter(d => filterFn({ id: d.id, ...d.data() }))
+      : snapshot.docs;
+    for (const docSnap of toDelete) {
+      await deleteDoc(fbDoc(window._fbDb, col, docSnap.id));
+    }
+  } catch (e) {
+    console.error('dbDelete error:', e);
+    throw e;
+  }
+}
+
+// Upsert by a match field (default: 'id'; settings uses 'key')
+async function dbUpsert(col, rowOrRows, matchField) {
+  await _waitFirebase();
+  const rows = Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows];
+  const now = new Date().toISOString();
+  try {
+    const colRef = window._fb.collection(window._fbDb, col);
+    const snapshot = await window._fb.getDocs(colRef);
+    const existing = snapshot.docs.map(d => ({ _docId: d.id, ...d.data() }));
+    for (const row of rows) {
+      const mf = matchField || (col === 'settings' ? 'key' : 'id');
+      const match = existing.find(r => r[mf] === row[mf]);
+      const newRow = { ...row, updated_at: now };
+      if (!newRow.created_at) newRow.created_at = now;
+      if (match) {
+        const docRef = window._fb.doc(window._fbDb, col, match._docId);
+        await window._fb.updateDoc(docRef, newRow);
+      } else {
+        const payload = { ...newRow };
+        delete payload.id;
+        await window._fb.addDoc(colRef, payload);
+      }
+    }
+  } catch (e) {
+    console.error('dbUpsert error:', e);
+    throw e;
+  }
+}
+
+// Display a DB error as toast
+function dbErr(msg) {
+  console.error('[DB]', msg);
+  setTimeout(() => { if (typeof toast === 'function') toast('⚠️ ' + msg, 'error'); }, 0);
 }
 </script>
 </head>
@@ -1770,7 +1792,7 @@ function sbErr(error) {
     <!-- Row 1: logo + editable text centered -->
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;">
       <span style="font-size:26px;line-height:1;">🏨</span>
-      <div id="topbar-text-display" onclick="handleTopbarTextClick()" style="font-size:12px;color:var(--muted);letter-spacing:0.5px;cursor:default;min-height:16px;"></div>
+      <div id="topbar-title" onclick="handleTopbarTextClick()" style="font-size:12px;color:var(--muted);letter-spacing:0.5px;cursor:default;min-height:16px;"></div>
       <input id="topbar-text-input" type="text" maxlength="50"
         placeholder="Ketik teks di sini..."
         onblur="saveTopbarText()"
@@ -1905,10 +1927,10 @@ function sbErr(error) {
             <div id="punch-clock-date" style="font-size:11px;color:var(--muted);margin-top:6px;font-family:'DM Mono',monospace;letter-spacing:0.5px;"></div>
           </div>
           <!-- Biometric status banner -->
-          <div id="staff-biometric-banner" style="display:none;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;font-size:12px;font-weight:500;margin-bottom:4px;"></div>
+
           <div class="punch-btns">
             <!-- PUNCH IN -->
-            <button id="punch-btn-in" class="fp-btn fp-in" onclick="staffBiometricPunch('in')">
+            <button id="punch-btn-in" class="fp-btn fp-in" onclick="punchIn()">
               <div class="fp-ring fp-ring-1"></div>
               <div class="fp-ring fp-ring-2"></div>
               <div class="fp-ring fp-ring-3"></div>
@@ -1925,7 +1947,7 @@ function sbErr(error) {
               <div id="punch-in-sub" class="fp-sub" data-i18n="punch_in_sub">Tap untuk absen masuk</div>
             </button>
             <!-- PUNCH OUT -->
-            <button id="punch-btn-out" class="fp-btn fp-out" onclick="staffBiometricPunch('out')">
+            <button id="punch-btn-out" class="fp-btn fp-out" onclick="punchOut()">
               <div class="fp-ring fp-ring-1"></div>
               <div class="fp-ring fp-ring-2"></div>
               <div class="fp-ring fp-ring-3"></div>
@@ -2419,113 +2441,166 @@ function sbErr(error) {
           <button class="btn btn-sm btn-secondary" onclick="resetShiftCodesToDefault()" style="gap:5px;font-size:12px;padding:0 14px;">🗑 Kosongkan</button>
         </div>
       </div>
-      <!-- Users & Departments merged -->
-      <div class="card">
-        <div class="card-title" data-i18n="manage_users">👥 Manage Users</div>
+      <!-- Card: Login Users + Staff Users + Keamanan Login (unified 3 tabs) -->
+      <div style="margin-bottom:16px;background:var(--card-bg);border:1px solid var(--border);border-radius:16px;overflow:hidden;">
 
-        <!-- Departments section -->
-        <div id="ud-section-depts">
-          <div id="dept-list" class="user-list"></div>
-          <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
-            <div class="flex-row">
-              <input id="new-dept-name" placeholder="Nama user/departemen"
-                style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 13px;color:var(--text);font-size:14px;outline:none;"
-                onkeydown="if(event.key==='Enter')addDept()">
-              <select id="new-dept-role" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 12px;color:var(--text);font-size:13px;outline:none;min-width:110px;">
-                <option value="staff">Staff</option>
-                <option value="manager">Manager</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <button class="btn btn-secondary btn-sm" style="align-self:flex-end;" onclick="addDept()">+ Tambah User</button>
-          </div>
-        </div>
-
-        <!-- ── KEAMANAN LOGIN ── -->
-        <div id="card-login-security" style="margin-top:20px;padding-top:18px;border-top:1px solid var(--border);">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px;">🔐 Keamanan Login</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">
-            Pilih metode autentikasi saat login. Berlaku untuk semua user.
-          </div>
-
-          <!-- Method Selector -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">
-            <div id="sec-method-pin" onclick="setLoginMethod('pin')"
-              style="border:2px solid var(--accent);border-radius:14px;padding:14px 10px;text-align:center;cursor:pointer;background:rgba(201,168,92,0.08);transition:all 0.2s;">
-              <div style="font-size:26px;margin-bottom:6px;">🔢</div>
-              <div style="font-size:13px;font-weight:700;color:var(--accent);">PIN</div>
-              <div style="font-size:10px;color:var(--muted);margin-top:3px;">8 digit angka</div>
-            </div>
-            <div id="sec-method-pattern" onclick="setLoginMethod('pattern')"
-              style="border:2px solid var(--border);border-radius:14px;padding:14px 10px;text-align:center;cursor:pointer;background:var(--surface2);transition:all 0.2s;">
-              <div style="font-size:26px;margin-bottom:6px;">🔷</div>
-              <div style="font-size:13px;font-weight:700;color:var(--text);">Pattern</div>
-              <div style="font-size:10px;color:var(--muted);margin-top:3px;">9 titik gesek</div>
-            </div>
-          </div>
-
-          <!-- Pattern Setup Section (admin only) -->
-          <div id="sec-pattern-setup" style="display:none;">
-            <div style="background:rgba(201,168,92,0.06);border:1px solid rgba(201,168,92,0.18);border-radius:12px;padding:14px;margin-bottom:14px;">
-              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px;font-weight:600;">🎨 Setup Pattern per User</div>
-              <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5;">Pilih user lalu gambar pattern login mereka. Pattern disimpan di perangkat ini.</div>
-              <select id="sec-pattern-user-sel" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-size:13px;outline:none;margin-bottom:12px;">
-                <option value="">— Pilih User —</option>
-              </select>
-              <!-- Mini pattern grid for setup -->
-              <div style="text-align:center;margin-bottom:10px;">
-                <div style="font-size:11px;color:var(--muted);margin-bottom:10px;" id="sec-pattern-label">Gambar pattern untuk user yang dipilih</div>
-                <canvas id="sec-pattern-canvas" width="200" height="200"
-                  style="border-radius:16px;background:var(--surface2);border:1px solid var(--border);touch-action:none;cursor:crosshair;display:block;margin:0 auto;"></canvas>
-                <div id="sec-pattern-status" style="font-size:11px;color:var(--muted);margin-top:8px;min-height:16px;"></div>
-              </div>
-              <div style="display:flex;gap:8px;">
-                <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="secPatternClear()">🗑 Ulang</button>
-                <button class="btn btn-primary btn-sm" style="flex:1;" onclick="secPatternSave()">💾 Simpan Pattern</button>
-              </div>
-            </div>
-
-            <!-- List saved patterns -->
-            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;font-weight:600;">Pattern Tersimpan</div>
-            <div id="sec-pattern-saved-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:4px;"></div>
-          </div>
-
-          <div id="sec-pin-note" style="display:flex;align-items:flex-start;gap:8px;background:rgba(110,231,183,0.06);border:1px solid rgba(110,231,183,0.15);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--muted);">
-            <span style="flex-shrink:0;">ℹ️</span>
-            <span>Metode PIN aktif. PIN setiap user dikelola di bagian ini.</span>
-          </div>
-        </div>
-      </div>
-      <!-- Staff Table -->
-      <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-          <div class="card-title" data-i18n="staff_list" style="margin-bottom:0;">👤 Daftar Staff</div>
-          <button class="btn btn-sm btn-secondary" onclick="showAddStaffQR()" style="gap:6px;font-size:12px;">
-            <span>🎫</span><span>Buat QR Baru</span>
+        <!-- Tab header: 3 tabs -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid var(--border);">
+          <button id="ud-tab-dept" onclick="switchUdTab('dept')"
+            style="padding:10px 4px;border:none;border-radius:0;background:var(--accent-glow);color:var(--accent);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;border-right:1px solid var(--border);transition:all 0.2s;">
+            🏢 Login
+          </button>
+          <button id="ud-tab-staff" onclick="switchUdTab('staff')"
+            style="padding:10px 4px;border:none;border-radius:0;background:transparent;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;border-right:1px solid var(--border);transition:all 0.2s;">
+            👥 Staff
+          </button>
+          <button id="ud-tab-security" onclick="switchUdTab('security')"
+            style="padding:10px 4px;border:none;border-radius:0;background:transparent;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:all 0.2s;">
+            🔐 Security
           </button>
         </div>
 
-        <!-- Inline QR generator (hidden by default) -->
-        <div id="staff-qr-generator" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:14px 14px 10px;margin-bottom:14px;">
-          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
-            <span>🎫 Generate Staff QR</span>
-            <span onclick="hideStaffQRGenerator()" style="cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:2px 6px;background:var(--surface);border-radius:6px;">×</span>
+        <!-- Panel: Login Users -->
+        <div id="ud-panel-dept" style="padding:14px;">
+          <div id="ud-section-depts">
+            <!-- Admin / Manager -->
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:8px;">👑 Admin &amp; Manager</div>
+            <div id="dept-list-admin" class="user-list" style="margin-bottom:10px;"></div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+              <input id="new-dept-name" placeholder="Nama (mis. Manager 2)"
+                style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 14px;color:var(--text);font-size:14px;outline:none;box-sizing:border-box;"
+                onkeydown="if(event.key==='Enter')addDeptAdmin()">
+              <select id="new-dept-role" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 14px;color:var(--text);font-size:14px;outline:none;box-sizing:border-box;">
+                <option value="manager">Manager</option>
+                <option value="admin">Admin</option>
+              </select>
+              <button class="btn btn-primary" onclick="addDeptAdmin()" style="width:100%;font-size:14px;padding:12px;">+ Tambah</button>
+            </div>
+
+            <!-- Staff Login + PIN -->
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:8px;">👤 Staff Login &amp; PIN</div>
+            <div id="dept-list" class="user-list" style="margin-bottom:8px;"></div>
           </div>
-          <div class="fg" style="margin-bottom:10px;">
-            <label>Nama Staff</label>
-            <input id="qr-gen-name" placeholder="Masukkan nama staff" onkeydown="if(event.key==='Enter')genQR()" style="font-size:15px;">
+        </div>
+
+        <!-- Panel: Staff Users -->
+        <div id="ud-panel-staff" style="padding:14px;display:none;">
+          <div id="ud-section-staff">
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <input id="new-staff-name" placeholder="Nama staff"
+                style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;outline:none;box-sizing:border-box;"
+                onkeydown="if(event.key==='Enter')addDeptStaff()">
+              <select id="new-staff-dept" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;outline:none;box-sizing:border-box;">
+                <option value="">— Pilih Department —</option>
+                <option value="F&amp;B Service">F&amp;B Service</option>
+                <option value="F&amp;B Product">F&amp;B Product</option>
+                <option value="Front Office">Front Office</option>
+                <option value="Housekeeping">Housekeeping</option>
+                <option value="Engineering">Engineering</option>
+                <option value="Sales &amp; Marketing">Sales &amp; Marketing</option>
+                <option value="Accounting">Accounting</option>
+                <option value="Human Resources">Human Resources</option>
+                <option value="Security">Security</option>
+                <option value="Purchasing">Purchasing</option>
+                <option value="Banquet">Banquet</option>
+                <option value="Spa &amp; Recreation">Spa &amp; Recreation</option>
+                <option value="General Manager">General Manager</option>
+              </select>
+              <button class="btn btn-primary" onclick="addDeptStaff()" style="width:100%;font-size:15px;padding:13px;">+ Tambah ke Daftar Staff</button>
+            </div>
           </div>
-          <div class="fg" style="margin-bottom:12px;">
-            <label>Department (opsional)</label>
-            <select id="qr-gen-dept">
-              <option value="">— Pilih Department —</option>
-              <option value="F&amp;B Service">F&amp;B Service</option>
-              <option value="F&amp;B Product">F&amp;B Product</option>
-            </select>
+        </div>
+
+        <!-- Panel: Keamanan Login -->
+        <div id="ud-panel-security" style="padding:14px;display:none;">
+          <div id="card-login-security">
+            <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">
+              Pilih metode autentikasi saat login. Berlaku untuk semua user.
+            </div>
+
+            <!-- Method Selector: 2 cards (PIN dihapus) -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px;">
+              <div id="sec-method-pin" style="display:none;"></div>
+              <div id="sec-method-pattern" onclick="setLoginMethod('pattern')"
+                style="border:2px solid var(--border);border-radius:14px;padding:12px 6px;text-align:center;cursor:pointer;background:var(--surface2);transition:all 0.2s;">
+                <div style="font-size:22px;margin-bottom:5px;">🔷</div>
+                <div style="font-size:12px;font-weight:700;color:var(--text);">Pattern</div>
+                <div style="font-size:9px;color:var(--muted);margin-top:2px;">9 titik gesek</div>
+              </div>
+              <div id="sec-method-qr" onclick="toggleQRGenerator()"
+                style="border:2px solid var(--border);border-radius:14px;padding:12px 6px;text-align:center;cursor:pointer;background:var(--surface2);transition:all 0.2s;">
+                <div style="font-size:22px;margin-bottom:5px;">🎫</div>
+                <div style="font-size:12px;font-weight:700;color:var(--text);">Staff QR</div>
+                <div style="font-size:9px;color:var(--muted);margin-top:2px;">Buat QR baru</div>
+              </div>
+            </div>
+
+            <!-- QR Generator panel (toggle) -->
+            <div id="staff-qr-generator" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px;">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:12px;">🎫 Generate Staff QR</div>
+              <div class="fg" style="margin-bottom:10px;">
+                <label>Nama Staff</label>
+                <input id="qr-gen-name" placeholder="Masukkan nama staff" onkeydown="if(event.key==='Enter')genQR()" style="font-size:15px;">
+              </div>
+              <div class="fg" style="margin-bottom:12px;">
+                <label>Department (opsional)</label>
+                <select id="qr-gen-dept">
+                  <option value="">— Pilih Department —</option>
+                  <option value="F&amp;B Service">F&amp;B Service</option>
+                  <option value="F&amp;B Product">F&amp;B Product</option>
+                  <option value="Front Office">Front Office</option>
+                  <option value="Housekeeping">Housekeeping</option>
+                  <option value="Engineering">Engineering</option>
+                  <option value="Sales &amp; Marketing">Sales &amp; Marketing</option>
+                  <option value="Accounting">Accounting</option>
+                  <option value="Human Resources">Human Resources</option>
+                  <option value="Security">Security</option>
+                  <option value="Purchasing">Purchasing</option>
+                  <option value="Banquet">Banquet</option>
+                  <option value="Spa &amp; Recreation">Spa &amp; Recreation</option>
+                  <option value="General Manager">General Manager</option>
+                </select>
+              </div>
+              <button class="btn btn-primary" onclick="genQR()" style="margin-bottom:10px;">Generate &amp; Simpan</button>
+              <div id="qrcode" style="margin-top:4px;text-align:center;"></div>
+              <button id="qr-download-btn" class="btn btn-sm btn-secondary" style="display:none;margin:8px auto 0;" onclick="downloadQR()">⬇ Download QR</button>
+            </div>
+
+            <!-- Pattern Setup Section (admin only) -->
+            <div id="sec-pattern-setup" style="display:none;">
+              <div style="background:rgba(201,168,92,0.06);border:1px solid rgba(201,168,92,0.18);border-radius:12px;padding:14px;margin-bottom:14px;">
+                <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px;font-weight:600;">🎨 Setup Pattern per User</div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5;">Pilih user lalu gambar pattern login mereka. Pattern disimpan di perangkat ini.</div>
+                <select id="sec-pattern-user-sel" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-size:13px;outline:none;margin-bottom:12px;">
+                  <option value="">— Pilih User —</option>
+                </select>
+                <div style="text-align:center;margin-bottom:10px;">
+                  <div style="font-size:11px;color:var(--muted);margin-bottom:10px;" id="sec-pattern-label">Gambar pattern untuk user yang dipilih</div>
+                  <canvas id="sec-pattern-canvas" width="200" height="200"
+                    style="border-radius:16px;background:var(--surface2);border:1px solid var(--border);touch-action:none;cursor:crosshair;display:block;margin:0 auto;"></canvas>
+                  <div id="sec-pattern-status" style="font-size:11px;color:var(--muted);margin-top:8px;min-height:16px;"></div>
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="secPatternClear()">🗑 Ulang</button>
+                  <button class="btn btn-primary btn-sm" style="flex:1;" onclick="secPatternSave()">💾 Simpan Pattern</button>
+                </div>
+              </div>
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;font-weight:600;">Pattern Tersimpan</div>
+              <div id="sec-pattern-saved-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:4px;"></div>
+            </div>
+
+            <div id="sec-pin-note" style="display:flex;align-items:flex-start;gap:8px;background:rgba(110,231,183,0.06);border:1px solid rgba(110,231,183,0.15);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--muted);">
+              <span style="flex-shrink:0;">ℹ️</span>
+              <span>Metode PIN aktif. PIN setiap user dikelola di bagian ini.</span>
+            </div>
           </div>
-          <button class="btn btn-primary" onclick="genQR()" style="margin-bottom:10px;">Generate &amp; Simpan</button>
-          <div id="qrcode" style="margin-top:4px;text-align:center;"></div>
-          <button id="qr-download-btn" class="btn btn-sm btn-secondary" style="display:none;margin:8px auto 0;" onclick="downloadQR()">⬇ Download QR</button>
+        </div>
+
+      </div>
+      <!-- Staff Table -->
+      <div class="card">
+        <div style="display:flex;align-items:center;margin-bottom:14px;">
+          <div class="card-title" data-i18n="staff_list" style="margin-bottom:0;">👤 Daftar Staff</div>
         </div>
 
         <div id="staff-table-list" class="user-list"></div>
@@ -2533,93 +2608,30 @@ function sbErr(error) {
           <div class="icon">👥</div>Belum ada staff tersimpan
         </div>
       </div>
-      <!-- ── BACKUP & RESTORE ── -->
+      <!-- Section: Backup JSON -->
       <div class="card">
-        <div class="card-title" data-i18n="backup_title">🗄️ Backup &amp; Restore Data</div>
-
-        <!-- Storage Stats -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
-          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:10px 8px;text-align:center;">
-            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:5px;">Records</div>
-            <div id="backup-stat-records" style="font-size:22px;font-weight:700;color:var(--accent);font-family:'DM Mono',monospace;">–</div>
+        <div class="card-title">🗄️ Backup &amp; Restore Data</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center;">
+            <div id="backup-stat-records" style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--accent);">–</div>
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-top:3px;">Records</div>
           </div>
-          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:10px 8px;text-align:center;">
-            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:5px;">Staff</div>
-            <div id="backup-stat-staff" style="font-size:22px;font-weight:700;color:var(--accent2);font-family:'DM Mono',monospace;">–</div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center;">
+            <div id="backup-stat-staff" style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--accent2);">–</div>
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-top:3px;">Staff</div>
           </div>
-          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:10px 8px;text-align:center;">
-            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:5px;">Ukuran</div>
-            <div id="backup-stat-size" style="font-size:22px;font-weight:700;color:var(--warning);font-family:'DM Mono',monospace;">–</div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center;">
+            <div id="backup-stat-size" style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--success);">–</div>
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-top:3px;">Ukuran</div>
           </div>
         </div>
-
-        <!-- Last Backup Timestamp -->
-        <div style="font-size:12px;color:var(--muted);margin-bottom:14px;padding:9px 13px;background:var(--surface);border-radius:10px;border:1px solid var(--border);display:flex;align-items:center;gap:8px;">
-          <span style="font-size:15px;flex-shrink:0;">🕐</span>
-          <span id="backup-last-text">Belum ada backup tersimpan</span>
-        </div>
-
-        <!-- Section: Cloud Auto Backup -->
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px;">☁️ Cloud Auto Backup</div>
-
-        <!-- Active Cloud Location Card -->
-        <div id="cloud-active-card" style="background:rgba(201,168,92,0.06);border:1px solid rgba(201,168,92,0.2);border-radius:13px;padding:12px 14px;margin-bottom:12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);">📡 Cloud Aktif</div>
-            <button onclick="openCloudLocationManager()" style="background:rgba(201,168,92,0.12);color:var(--accent);border:1px solid rgba(201,168,92,0.25);border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">Kelola</button>
-          </div>
-          <div id="cloud-active-name" style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px;">–</div>
-          <div id="cloud-active-url"  style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">–</div>
-          <div id="cloud-active-status" style="margin-top:8px;font-size:11px;font-weight:600;color:var(--muted);">● Belum di-test</div>
-        </div>
-
-        <!-- Auto Backup Toggle -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;">
-          <div>
-            <div style="font-size:13px;font-weight:600;color:var(--text);">Auto Backup ke Cloud</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px;">Backup otomatis setiap 24 jam</div>
-          </div>
-          <label class="gps-toggle">
-            <input type="checkbox" id="cloud-backup-toggle" onchange="toggleAutoBackup(this.checked)">
-            <span class="gps-slider"></span>
-          </label>
-        </div>
-
-        <!-- Cloud Backup Status -->
-        <div id="cloud-backup-status" style="display:none;margin-bottom:12px;padding:10px 13px;border-radius:10px;font-size:12px;font-weight:600;line-height:1.5;"></div>
-
-        <!-- Last Cloud Backup -->
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;padding:9px 13px;background:var(--surface);border-radius:10px;border:1px solid var(--border);display:flex;align-items:center;gap:8px;">
-          <span style="font-size:15px;flex-shrink:0;">☁️</span>
-          <span id="cloud-backup-last-text">Belum ada cloud backup</span>
-        </div>
-
-        <!-- Manual Cloud Backup Button -->
-        <button class="btn btn-accent2" onclick="cloudBackupNow()" style="margin-bottom:8px;gap:10px;font-size:14px;width:100%;">
-          <span>☁️</span> Backup ke Cloud Sekarang
-        </button>
-
-        <!-- Cloud Backup List -->
-        <button class="btn btn-secondary" onclick="toggleCloudBackupList()" style="margin-bottom:12px;gap:10px;font-size:13px;width:100%;">
-          <span>📋</span> Lihat Riwayat Cloud Backup
-        </button>
-        <div id="cloud-backup-list-wrap" style="display:none;">
-          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;font-weight:600;">Riwayat Cloud Backup</div>
-          <div id="cloud-backup-list" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;"></div>
-          <div id="cloud-backup-empty" style="font-size:12px;color:var(--muted);text-align:center;padding:16px 0;display:none;">Belum ada cloud backup tersimpan</div>
-        </div>
-
-        <div style="height:1px;background:var(--border);margin:14px 0;"></div>
-
-        <!-- Section: Backup JSON -->
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;">💾 Backup Lokal</div>
+        <div id="backup-last-text" style="font-size:11px;color:var(--muted);margin-bottom:10px;font-family:'DM Mono',monospace;">Belum ada backup tersimpan</div>
         <button class="btn btn-primary" onclick="backupData()" style="margin-bottom:8px;gap:10px;font-size:15px;">
           <span>⬇️</span><span data-i18n="download_backup"> Download Backup (.json)</span>
         </button>
         <label for="restore-file-input" class="btn btn-accent2" style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;font-size:15px;padding:15px;border-radius:12px;cursor:pointer;font-weight:600;-webkit-tap-highlight-color:transparent;touch-action:manipulation;box-sizing:border-box;margin-bottom:16px;">
           <span>📂</span><span data-i18n="upload_backup"> Upload Backup (.json)</span>
         </label>
-
       </div>
 
 
@@ -2755,8 +2767,9 @@ function sbErr(error) {
           <div style="display:flex;align-items:center;gap:10px;padding-top:10px;border-top:1px solid var(--border);">
             <div style="width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#000;flex-shrink:0;letter-spacing:-0.5px;">DA</div>
             <div>
-              <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;font-weight:600;margin-bottom:1px;">App Built by</div>
-              <div style="font-size:13px;font-weight:800;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:0.3px;">DLinksys <span style="font-size:11px;font-weight:500;opacity:0.75;">(Dian Ariza)</span></div>
+              <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;font-weight:600;margin-bottom:1px;">App build by</div>
+              <div style="font-size:13px;font-weight:800;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:0.3px;">Dee79sys</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:3px;letter-spacing:0.2px;">Develop by : <span style="font-weight:600;color:var(--text);">Dian Ariza</span></div>
             </div>
           </div>
         </div>
@@ -2784,55 +2797,9 @@ function sbErr(error) {
         </div>
       </div>
 
-      <!-- Logout -->
-      <button class="btn btn-danger" style="width:100%;margin-top:4px;" onclick="logout()" data-i18n="sign_out">⎋ Sign Out</button>
     </div>
 
   </div><!-- /main-scroll -->
-
-  <!-- ── CLOUD LOCATION MANAGER MODAL ── -->
-  <div id="modal-cloud-location" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-cloud-location')">
-    <div class="sheet" style="max-width:480px;">
-      <div class="sheet-handle"></div>
-      <div class="sheet-title">
-        <span>📡 Cloud Location</span>
-        <span class="sheet-close" onclick="closeModal('modal-cloud-location')">×</span>
-      </div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">
-        Tambah & pilih Supabase project sebagai cloud backup system. Cloud yang diaktifkan akan digunakan sebagai koneksi utama.
-      </div>
-
-      <!-- Saved cloud list -->
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;">Daftar Cloud</div>
-      <div id="cloud-location-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-height:240px;overflow-y:auto;"></div>
-      <div id="cloud-location-empty" style="font-size:12px;color:var(--muted);text-align:center;padding:12px 0;display:none;">Belum ada cloud location tersimpan</div>
-
-      <!-- Add new cloud form -->
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:13px;padding:14px;margin-bottom:14px;">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:12px;">➕ Tambah Cloud Location</div>
-
-        <div class="fg" style="margin-bottom:10px;">
-          <label>Nama / Label</label>
-          <input id="cl-input-name" placeholder="Contoh: Supabase Production" style="font-size:14px;">
-        </div>
-        <div class="fg" style="margin-bottom:10px;">
-          <label>Supabase URL</label>
-          <input id="cl-input-url" placeholder="https://xxxx.supabase.co" style="font-size:13px;font-family:'DM Mono',monospace;" autocomplete="off" autocorrect="off" spellcheck="false">
-        </div>
-        <div class="fg" style="margin-bottom:14px;">
-          <label>Anon Key</label>
-          <input id="cl-input-key" placeholder="eyJhbGci..." style="font-size:11px;font-family:'DM Mono',monospace;" type="password" autocomplete="off">
-        </div>
-
-        <div id="cl-add-status" style="display:none;margin-bottom:10px;padding:8px 11px;border-radius:9px;font-size:11px;font-weight:600;line-height:1.5;"></div>
-
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="testCloudConnection()">🔌 Test Koneksi</button>
-          <button class="btn btn-primary btn-sm" style="flex:1;" onclick="addCloudLocation()">💾 Simpan</button>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- Bottom Nav -->
   <nav class="bottom-nav" id="bottom-nav">
@@ -2927,6 +2894,35 @@ function sbErr(error) {
     <div class="sheet-footer">
       <button class="btn btn-secondary" style="flex:1;" onclick="closeModal('modal-dept-pin')">Batal</button>
       <button class="btn btn-primary" style="flex:1;" onclick="saveDeptPin()">💾 Simpan PIN</button>
+    </div>
+  </div>
+</div>
+
+<!-- Staff Security Pattern Sheet -->
+<div id="modal-staff-pattern" class="modal-overlay" style="align-items:flex-end;">
+  <div class="sheet" style="border-radius:24px 24px 0 0;max-height:92dvh;overflow-y:auto;padding-bottom:calc(16px + var(--safe-bottom));">
+    <div style="display:flex;justify-content:center;padding:10px 0 4px;">
+      <div style="width:36px;height:4px;border-radius:2px;background:var(--border);"></div>
+    </div>
+    <div style="padding:12px 20px 16px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:3px;">Security Pattern</div>
+        <div style="font-size:17px;font-weight:800;color:var(--text);">🔷 <span id="spm-staff-name" style="color:#9b87e8;"></span></div>
+      </div>
+      <span onclick="closeStaffPatternSheet()" style="cursor:pointer;color:var(--muted);font-size:22px;line-height:1;padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;">×</span>
+    </div>
+    <div style="padding:0 20px 14px;">
+      <div id="spm-current-status" style="font-size:12px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 13px;margin-bottom:16px;line-height:1.5;"></div>
+      <div style="text-align:center;margin-bottom:10px;">
+        <canvas id="spm-canvas" width="240" height="240"
+          style="border-radius:18px;background:var(--surface2);border:1px solid var(--border);touch-action:none;cursor:crosshair;display:block;margin:0 auto;"></canvas>
+        <div id="spm-error" style="font-size:12px;font-weight:600;margin-top:8px;min-height:18px;opacity:0;transition:opacity 0.2s;"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="spmClear()">🗑 Ulang</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="spmSave()">💾 Simpan Pattern</button>
+      </div>
+      <button class="btn btn-danger btn-sm" style="width:100%;font-size:12px;" onclick="spmDelete()">🗑 Hapus Pattern</button>
     </div>
   </div>
 </div>
@@ -3226,36 +3222,43 @@ function sbErr(error) {
 <script>
 'use strict';
 // ════════════════════════════════════════
-//  STORAGE  (Supabase — read-only compat helpers)
+//  STORAGE
 // ════════════════════════════════════════
 
-// Internal row converter: Supabase row → app internal format
-function _sbRowToRecord(r) {
+// Normalise a stored record to internal format (in/out as ms timestamps)
+function _toRecord(r) {
   return {
     id:     r.id,
-    name:   r.staff_name,
+    name:   r.name || r.staff_name,
     branch: r.branch,
     date:   r.date,
     shift:  r.shift,
-    in:     r.punch_in  ? new Date(r.punch_in).getTime()  : null,
-    out:    r.punch_out ? new Date(r.punch_out).getTime() : null,
+    in:     r.in  != null ? r.in  : (r.punch_in  ? new Date(r.punch_in).getTime()  : null),
+    out:    r.out != null ? r.out : (r.punch_out ? new Date(r.punch_out).getTime() : null),
   };
 }
 
-const BRANCHES_KEY   = 'hat_branches';
-const CURRENT_BRANCH = 'default';
-const currentBranch  = () => CURRENT_BRANCH;
+const BRANCHES_KEY = 'hat_branches';
+// currentBranch is dynamic — reads from sessionStorage (set on login per department/branch).
+// Falls back to localStorage setting, then 'default'.
+const currentBranch = () => {
+  return sessionStorage.getItem('hat_current_branch')
+      || localStorage.getItem('hat_default_branch')
+      || 'default';
+};
+// Setter helper — call this when user switches branch
+function setCurrentBranch(branch) {
+  if (!branch) return;
+  sessionStorage.setItem('hat_current_branch', branch);
+}
 
 async function getAllData() {
   try {
-    const { data, error } = await sbQuery(() =>
-      sb.from('attendance_records').select('*').order('punch_in', { ascending: false })
-    );
-    if (error || !data) return {};
+    const rows = (await dbGetAll('records', null, 'punch_in', false)).map(_toRecord);
     const result = {};
-    data.forEach(r => {
+    rows.forEach(r => {
       if (!result[r.branch]) result[r.branch] = [];
-      result[r.branch].push(_sbRowToRecord(r));
+      result[r.branch].push(r);
     });
     return result;
   } catch (e) { console.error('[getAllData]', e); return {}; }
@@ -3263,11 +3266,7 @@ async function getAllData() {
 
 async function getBranchData(branch) {
   try {
-    const { data, error } = await sbQuery(() =>
-      sb.from('attendance_records').select('*').eq('branch', branch).order('punch_in', { ascending: false })
-    );
-    if (error || !data) return [];
-    return data.map(_sbRowToRecord);
+    return (await dbGetAll('records', r => r.branch === branch, 'punch_in', false)).map(_toRecord);
   } catch (e) { console.error('[getBranchData]', e); return []; }
 }
 
@@ -3504,36 +3503,23 @@ async function login() {
   try {
     // ── 1. Check hardcoded Admin PIN first (works offline too)
     if (entered === ADMIN_DEPT.pin) {
-      _doLogin(ADMIN_DEPT.name, true, 'admin');
+      _doLogin(ADMIN_DEPT.name, true, 'admin', ADMIN_DEPT.branch || null);
       return;
     }
 
     // ── 2. Fetch departments from local DB
-    const { data: depts, error } = await sbQuery(() =>
-      sb.from('departments').select('name, pin, is_admin, role')
-    );
-
-    if (error) {
-      console.warn('[Login] DB error, trying offline cache', error);
-      const cached = _getCachedDepts();
-      const match  = cached.find(d => d.pin && d.pin === entered);
-      if (match) { _doLogin(match.name, !!match.is_admin, match.role || (match.is_admin ? 'admin' : 'staff')); return; }
-      pinShakeError(); return;
-    }
-
-    if (depts) localStorage.setItem('hat_depts_cache', JSON.stringify(depts));
-
-    const allDepts = [ADMIN_DEPT, ...(depts || [])];
+    const depts = await dbGetAll('logins');
+    const allDepts = [ADMIN_DEPT, ...depts];
     const match    = allDepts.find(d => d.pin && d.pin === entered);
     if (!match) { pinShakeError(); return; }
-    _doLogin(match.name, !!match.is_admin, match.role || (match.is_admin ? 'admin' : 'staff'));
+    _doLogin(match.name, !!match.is_admin, match.role || (match.is_admin ? 'admin' : 'staff'), match.branch || null);
 
   } catch (e) {
     console.error('[Login]', e);
     // Last resort: try cached
-    const cached = _getCachedDepts();
+    const cached = await dbGetAll('logins');
     const match  = cached.find(d => d.pin && d.pin === entered);
-    if (match) { _doLogin(match.name, !!match.is_admin, match.role || (match.is_admin ? 'admin' : 'staff')); return; }
+    if (match) { _doLogin(match.name, !!match.is_admin, match.role || (match.is_admin ? 'admin' : 'staff'), match.branch || null); return; }
     pinShakeError();
   } finally {
     document.querySelectorAll('.numpad-btn').forEach(b => b.style.pointerEvents = '');
@@ -3541,7 +3527,7 @@ async function login() {
   }
 }
 
-function _doLogin(name, isAdminFlag, role) {
+function _doLogin(name, isAdminFlag, role, branch) {
   // role: 'admin' | 'manager' | 'staff'
   // Backward compat: if role not provided, derive from isAdminFlag
   const effectiveRole = role || (isAdminFlag ? 'admin' : 'staff');
@@ -3549,6 +3535,8 @@ function _doLogin(name, isAdminFlag, role) {
   sessionStorage.setItem('hat_active_dept', name);
   sessionStorage.setItem('hat_is_admin', effectiveRole === 'admin' ? '1' : '0');
   sessionStorage.setItem('hat_role', effectiveRole);
+  // Set branch: use department's branch, or department name as branch key, or 'default'
+  setCurrentBranch(branch || localStorage.getItem('hat_default_branch') || 'default');
   _pinValue = '';
   updatePinDots();
   // ── Security: reset fail state on successful login ──
@@ -3557,10 +3545,7 @@ function _doLogin(name, isAdminFlag, role) {
   initDashboard();
 }
 
-function _getCachedDepts() {
-  try { return JSON.parse(localStorage.getItem('hat_depts_cache')) || []; }
-  catch (_) { return []; }
-}
+async function _getCachedDepts() { return await dbGetAll('logins'); }
 
 // ── Theme ──
 function toggleTheme() {
@@ -3848,10 +3833,7 @@ async function loginWithPattern() {
 
   // Check all departments
   try {
-    const { data: depts } = await sbQuery(() =>
-      sb.from('departments').select('name, pin, is_admin, role')
-    );
-    const allDepts = [ADMIN_DEPT, ...(depts || [])];
+    const allDepts = [ADMIN_DEPT, ...await dbGetAll('logins')];
     for (const d of allDepts) {
       const dp = patterns[d.name];
       if (dp && dp === entered) {
@@ -4128,28 +4110,12 @@ window.addEventListener('load', () => {
 });
 
 // Seed F&B departments and default Manager into local DB if not already present
-function _seedFBDepts() {
-  const db = _dbLoad();
-  const existing = (db.departments || []).map(d => d.name);
-  let changed = false;
-
-  // F&B staff departments
-  FB_DEPTS.forEach(name => {
-    if (!existing.includes(name)) {
-      if (!db.departments) db.departments = [];
-      db.departments.push({ id: _uuid(), name, pin: '', is_admin: false, role: 'staff', created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
-      changed = true;
-    }
-  });
-
+async function _seedFBDepts() {
+  const existing = (await dbGetAll('logins')).map(d => d.name);
   // Default Manager account (PIN: 87654321)
   if (!existing.includes('Manager')) {
-    if (!db.departments) db.departments = [];
-    db.departments.push({ id: _uuid(), name: 'Manager', pin: '87654321', is_admin: false, role: 'manager', created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
-    changed = true;
+    await dbInsert('logins', { name: 'Manager', pin: '87654321', is_admin: false, role: 'manager', sort_order: 0 });
   }
-
-  if (changed) _dbSave(db);
 }
 
 function populateLoginBranches() {
@@ -4337,7 +4303,6 @@ function applyUserMode() {
       }
     }
     startPunchClock();
-    updateStaffBiometricBanner();
     renderUserStats();
   } else {
     // Admin / Manager: Home tab, manual punch mode
@@ -4564,19 +4529,14 @@ async function initDashboard() {
   await populateShiftSelect();
   await populateQRDeptSelect();
   await refreshAll();
-  await updateBackupStats();
   updateTopbarTitle();
   applyUserMode();
   loadTopbarText();
   // Apply saved view mode (PC/Mobile)
   applyViewMode(getViewMode());
-  await updateGPSSettingsUI();
   applyLang();
   applyAccent();
-  renderSystemInfo();
-  updateOnlineStatus();
-  subscribeToAttendance();
-  initCloudBackup();
+  startAutoRefresh();
 }
 
 function setTodayDate() {
@@ -4651,11 +4611,10 @@ function switchTab(name, btn, fromPC) {
       renderUserStats();
     }
   }
-  if (name === 'log') { populateLogShiftFilter(); renderLog(); }
+  if (name === 'log') { populateLogShiftFilter(); renderLog().catch(e => console.error('[renderLog]', e)); }
   if (name === 'schedule') { initScheduleTab(); }
   if (name === 'punch') {
     startPunchClock();
-    updateStaffBiometricBanner();
     // For non-admin: start QR clock and reset state
     if (!isAdmin()) {
       startQRPunchClock();
@@ -4687,8 +4646,8 @@ function switchTab(name, btn, fromPC) {
   if (name !== 'punch' && _qrClockTimer)    { clearInterval(_qrClockTimer);    _qrClockTimer    = null; }
   if (name !== 'analytics') stopUstatDynamicQR();
   if (name === 'settings') {
-    renderDepts(); renderShifts(); populateQRDeptSelect(); renderStaffTable();
-    updateBackupStats(); updateGPSSettingsUI(); renderSystemInfo(); updateSwatchUI(); updateSecuritySettingsUI(); initCloudBackup();
+    renderDepts(); renderShifts(); populateQRDeptSelect(); renderStaffTable(); syncStaffToDepts();
+    updateGPSSettingsUI(); renderSystemInfo(); updateSwatchUI(); updateSecuritySettingsUI();
     populateExportStaffFilter(); loadTelegramSettingsUI(); }
 }
 
@@ -4726,7 +4685,7 @@ function setPunchMode(mode) {
 }
 
 // Fixed F&B departments always present in QR dropdown
-const FB_DEPTS = ['F&B Service', 'F&B Product'];
+const FB_DEPTS = ['F&B Service', 'F&B Product', 'Front Office', 'Housekeeping', 'Engineering', 'Sales & Marketing', 'Accounting', 'Human Resources', 'Security', 'Purchasing', 'Banquet', 'Spa & Recreation', 'General Manager'];
 
 async function populateQRDeptSelect() {
   const sel = document.getElementById('qr-gen-dept');
@@ -4746,9 +4705,14 @@ async function populateQRDeptSelect() {
 // ════════════════════════════════════════
 // ── Auto-detect shift from current time ──
 async function autoDetectShift() {
+  const shifts = await getShiftsArr();
+  return autoDetectShiftFromCache(shifts);
+}
+
+// Synchronous version using pre-loaded shifts (for use in tight loops / clock ticks)
+function autoDetectShiftFromCache(shifts) {
   const now         = new Date();
   const currentMins = now.getHours() * 60 + now.getMinutes();
-  const shifts      = await getShiftsArr();
   for (const s of shifts) {
     if (!s.start || !s.end) continue;
     const [sh, sm]   = s.start.split(':').map(Number);
@@ -4764,12 +4728,14 @@ async function autoDetectShift() {
 
 // ── Live clock for punch tab ──
 let _punchClockTimer = null;
+let _cachedShiftsForClock = null; // cache to avoid re-fetching every second
 function startPunchClock() {
   const clockEl = document.getElementById('punch-clock');
   const dateEl  = document.getElementById('punch-clock-date');
   const shiftIn = document.getElementById('punch-shift');
   if (!clockEl) return;
   if (_punchClockTimer) clearInterval(_punchClockTimer);
+  _cachedShiftsForClock = null; // reset cache on start
   const tick = async () => {
     const now = new Date();
     const hh  = String(now.getHours()).padStart(2, '0');
@@ -4783,8 +4749,14 @@ function startPunchClock() {
     }
     const punchDateEl = document.getElementById('punch-date');
     if (punchDateEl) punchDateEl.value = now.toISOString().split('T')[0];
-    const detected = await autoDetectShift();
-    if (shiftIn) shiftIn.value = detected;
+    // Refresh shift cache every minute (on :00 second) or when not yet loaded
+    if (!_cachedShiftsForClock || now.getSeconds() === 0) {
+      _cachedShiftsForClock = await getShiftsArr();
+    }
+    if (shiftIn) {
+      const detected = await autoDetectShiftFromCache(_cachedShiftsForClock);
+      shiftIn.value = detected;
+    }
   };
   tick();
   _punchClockTimer = setInterval(tick, 1000);
@@ -4800,6 +4772,7 @@ function startPunchClock() {
 const PUNCH_BLOCKED_CODES = ['OFF', 'EO', 'PH', 'AL', 'SL', 'ML', 'OUT'];
 const PUNCH_EARLY_BLOCK_HOURS = 2;   // cannot punch earlier than 2h before shift
 const PUNCH_LATE_MAX_HOURS    = 4;   // after 4h past shift start → late
+let _lastPunchLate = false;          // tracks whether last punch was flagged late
 
 async function getStaffScheduledShiftToday(name) {
   try {
@@ -4810,16 +4783,12 @@ async function getStaffScheduledShiftToday(name) {
     const key   = `${year}-${String(month + 1).padStart(2, '0')}`;
 
     // Get staff ID
-    const { data: staffArr } = await sbQuery(() =>
-      sb.from('staff').select('id').eq('name', name).maybeSingle()
-    );
+    const staffArr = await dbGetOne('staff', r => r.name === name);
     const staffId = staffArr?.id;
     if (!staffId) return null;
 
     const cellId = `${staffId}_${key}_${day}`;
-    const { data: sched } = await sbQuery(() =>
-      sb.from('schedules').select('shift_code').eq('id', cellId).maybeSingle()
-    );
+    const sched = await dbGetOne('schedules', r => r.id === cellId);
     return sched?.shift_code || null;
   } catch (e) {
     console.warn('[getStaffScheduledShiftToday]', e);
@@ -4922,26 +4891,20 @@ async function _doPunchIn() {
     return;
   }
 
-  const ok = await checkGPSBeforePunch();
-  if (!ok) return;
-
   try {
-    const { data: existing } = await sbQuery(() =>
-      sb.from('attendance_records').select('id')
-        .eq('staff_name', name).eq('branch', currentBranch())
-        .eq('date', date).is('punch_out', null).maybeSingle()
-    );
+    const existing = await dbGetOne('records', r =>
+      r.staff_name === name && r.branch === currentBranch() &&
+      r.date === date && (r.punch_out === null || r.punch_out === undefined));
     if (existing) { _showPunchError(`${name} sudah punch in hari ini`); return; }
 
     const now = new Date().toISOString();
-    const { error } = await sbQuery(() =>
-      sb.from('attendance_records').insert({
+    try {
+      await dbInsert('records', {
         staff_name: name, branch: currentBranch(), date,
         shift: validation.shiftCode || shift,
         punch_in: now, punch_out: null
-      })
-    );
-    if (error) { sbErr(error); return; }
+      });
+    } catch(e) { dbErr(e.message); return; }
 
     const timeStr = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
     _showPunchNotif({ name, action: 'IN', time: timeStr, extra: validation.shiftCode || shift, late: validation.late });
@@ -4955,17 +4918,13 @@ async function _doPunchOut() {
   const date = document.getElementById('punch-date').value;
   if (!name) { _showPunchError('Pilih nama staff terlebih dahulu'); return; }
 
-  const ok = await checkGPSBeforePunch();
-  if (!ok) return;
-
   try {
-    const { data: openRecord, error: findErr } = await sbQuery(() =>
-      sb.from('attendance_records').select('id, punch_in, shift')
-        .eq('staff_name', name).eq('branch', currentBranch())
-        .eq('date', date).is('punch_out', null)
-        .order('punch_in', { ascending: false }).limit(1).maybeSingle()
-    );
-    if (findErr || !openRecord) { _showPunchError(`Tidak ada punch in aktif untuk ${name}`); return; }
+    const openRecord = (await dbGetAll('records',
+      r => r.staff_name === name && r.branch === currentBranch() &&
+           r.date === date && (r.punch_out === null || r.punch_out === undefined),
+      'punch_in', false
+    ))[0] ?? null;
+    if (!openRecord) { _showPunchError(`Tidak ada punch in aktif untuk ${name}`); return; }
 
     const workedMs   = Date.now() - new Date(openRecord.punch_in).getTime();
     const workedMins = Math.floor(workedMs / 60000);
@@ -4978,10 +4937,8 @@ async function _doPunchOut() {
     }
 
     const now = new Date().toISOString();
-    const { error } = await sbQuery(() =>
-      sb.from('attendance_records').update({ punch_out: now }).eq('id', openRecord.id)
-    );
-    if (error) { sbErr(error); return; }
+    try { await dbUpdate('records', r => r.id === openRecord.id, { punch_out: now }); }
+    catch(e) { dbErr(e.message); return; }
 
     const outTimeStr = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
     const dur = fmtDuration(Date.now() - new Date(openRecord.punch_in).getTime());
@@ -5015,15 +4972,14 @@ async function autoPunch(name, shift) {
   const date = new Date().toISOString().split('T')[0];
   const now  = new Date().toISOString();
   try {
-    const { data: openRecord } = await sbQuery(() =>
-      sb.from('attendance_records').select('id, punch_in, shift')
-        .eq('staff_name', name).eq('branch', currentBranch())
-        .eq('date', date).is('punch_out', null)
-        .order('punch_in', { ascending: false }).limit(1).maybeSingle()
-    );
+    const openRecord = (await dbGetAll('records',
+      r => r.staff_name === name && r.branch === currentBranch() &&
+           r.date === date && (r.punch_out === null || r.punch_out === undefined),
+      'punch_in', false
+    ))[0] ?? null;
 
     if (openRecord) {
-      await sbQuery(() => sb.from('attendance_records').update({ punch_out: now }).eq('id', openRecord.id));
+      await dbUpdate('records', r => r.id === openRecord.id, { punch_out: now });
       const dur    = fmtDuration(Date.now() - new Date(openRecord.punch_in).getTime());
       const outStr = new Date().toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
       showAutoPunchOverlay(name, 'OUT', outStr, openRecord.shift ? `Shift ${openRecord.shift} · ${dur}` : dur);
@@ -5036,9 +4992,9 @@ async function autoPunch(name, shift) {
         return;
       }
       const useShift = validation.shiftCode || shift || await autoDetectShift() || (await getShiftsArr())[0]?.name || '';
-      await sbQuery(() => sb.from('attendance_records').insert({
+      await dbInsert('records', {
         staff_name: name, branch: currentBranch(), date, shift: useShift, punch_in: now, punch_out: null
-      }));
+      });
       const inStr = new Date().toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
       showAutoPunchOverlay(name, 'IN', inStr, useShift);
       vibrate([30, 20, 60]);
@@ -5049,10 +5005,8 @@ async function autoPunch(name, shift) {
 
 async function deleteRecord(id) {
   try {
-    const { error } = await sbQuery(() =>
-      sb.from('attendance_records').delete().eq('id', id)
-    );
-    if (error) { sbErr(error); return; }
+    try { await dbDelete('records', r => r.id === id); }
+    catch(e) { dbErr(e.message); return; }
     await refreshAll();
     await renderLog();
     toast('🗑 Record dihapus', 'info');
@@ -5107,9 +5061,6 @@ function _showPunchNotif({ name, action, time, extra, late = false }) {
     </div>`;
   overlay.style.display = 'flex';
   _autopunchTimer = setTimeout(closeAutoPunchOverlay, 4000);
-
-  // Send Telegram notification
-  sendTelegramPunchNotif({ name, action, time, extra, late });
 }
 
 // ── Punch error notification overlay ──
@@ -5708,9 +5659,7 @@ async function renderCharts() {
 // ── Staff Table ──
 async function getStaff() {
   try {
-    const { data, error } = await sbQuery(() => sb.from('staff').select('*').order('name'));
-    if (error || !data) return [];
-    return data;
+    return await dbGetAll('staff', null, 'name', true);
   } catch (e) { console.error('[getStaff]', e); return []; }
 }
 
@@ -5730,20 +5679,104 @@ async function renderStaffTable() {
     const avatarContent = s.photo
       ? `<img src="${s.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
       : `<span style="font-size:13px;font-weight:800;color:var(--accent);">${initials}</span>`;
+    const deptOpts = ['F&B Service', 'F&B Product', 'Front Office', 'Housekeeping', 'Engineering', 'Sales & Marketing', 'Accounting', 'Human Resources', 'Security', 'Purchasing', 'Banquet', 'Spa & Recreation', 'General Manager'].map(d =>
+      `<option value="${d}" ${s.dept===d?'selected':''}>${d}</option>`).join('');
     return `
-    <div class="user-item" style="padding:9px 12px;">
-      <div class="user-avatar" style="background:${s.photo ? 'transparent' : 'rgba(110,231,183,0.1)'};font-size:14px;overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer;" onclick="showStaffProfile('${s.id}')">${avatarContent}</div>
-      <div class="user-info" style="cursor:pointer;" onclick="showStaffProfile('${s.id}')">
-        <div class="user-name" style="font-size:13px;">${esc(s.name)}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${s.dept ? '🏷️ ' + esc(s.dept) : '—'}</div>
+    <div class="user-item" id="staff-row-${s.id}" style="padding:9px 12px;flex-wrap:wrap;gap:6px;">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+        <div class="user-avatar" style="background:${s.photo ? 'transparent' : 'rgba(110,231,183,0.1)'};font-size:14px;overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;" onclick="showStaffProfile('${s.id}')">${avatarContent}</div>
+        <div id="staff-view-${s.id}" class="user-info" style="cursor:pointer;min-width:0;flex:1;" onclick="showStaffProfile('${s.id}')">
+          <div class="user-name" style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(s.name)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${s.dept ? '🏷️ ' + esc(s.dept) : '—'}</div>
+        </div>
+        <div id="staff-edit-${s.id}" style="display:none;flex:1;min-width:0;flex-direction:column;gap:6px;">
+          <input id="staff-edit-name-${s.id}" value="${esc(s.name)}"
+            style="width:100%;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box;"
+            onkeydown="if(event.key==='Enter')saveStaffEdit('${s.id}');if(event.key==='Escape')cancelStaffEdit('${s.id}')">
+          <select id="staff-edit-dept-${s.id}"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box;">
+            <option value="" ${!s.dept?'selected':''}>— Tanpa Department —</option>
+            ${deptOpts}
+          </select>
+          <div style="display:flex;gap:6px;justify-content:flex-end;">
+            <button onclick="cancelStaffEdit('${s.id}')"
+              style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px;color:var(--muted);">Batal</button>
+            <button onclick="saveStaffEdit('${s.id}')"
+              style="background:rgba(90,191,138,0.15);border:1px solid rgba(90,191,138,0.35);border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px;color:#5abf8a;font-weight:600;">✓ Simpan</button>
+          </div>
+        </div>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-        <button onclick="showStaffQRModal('${esc(s.name)}','${esc(s.dept||'')}')" title="Generate QR"
-          style="background:rgba(201,168,92,0.1);border:1px solid rgba(201,168,92,0.25);border-radius:8px;padding:5px 9px;cursor:pointer;font-size:14px;line-height:1;color:var(--accent);">🎫</button>
-        <span style="font-size:11px;color:var(--accent);font-weight:600;padding:4px 8px;background:var(--accent-glow);border-radius:6px;cursor:pointer;" onclick="showStaffProfile('${s.id}')">Profil ›</span>
+      <div id="staff-actions-${s.id}" style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+        <button onclick="showStaffQRModal('${esc(s.name)}','${esc(s.dept||'')}')" title="QR"
+          style="background:rgba(201,168,92,0.1);border:1px solid rgba(201,168,92,0.25);border-radius:8px;padding:5px 8px;cursor:pointer;font-size:13px;line-height:1;color:var(--accent);">🎫</button>
+        <button onclick="openStaffPatternSheet('${esc(s.name)}')" title="Security Pattern"
+          style="background:rgba(155,135,232,0.1);border:1px solid rgba(155,135,232,0.25);border-radius:8px;padding:5px 8px;cursor:pointer;font-size:13px;line-height:1;color:#9b87e8;">🔷</button>
+        <button onclick="startStaffEdit('${s.id}')" title="Edit"
+          style="background:rgba(126,184,212,0.1);border:1px solid rgba(126,184,212,0.25);border-radius:8px;padding:5px 8px;cursor:pointer;font-size:13px;line-height:1;color:var(--accent2);">✏️</button>
+        <button onclick="deleteStaffRow('${s.id}','${esc(s.name)}')" title="Hapus"
+          style="background:rgba(224,112,112,0.1);border:1px solid rgba(224,112,112,0.25);border-radius:8px;padding:5px 8px;cursor:pointer;font-size:13px;line-height:1;color:var(--danger);">🗑</button>
       </div>
     </div>
-  `}).join('');
+  `;
+  }).join('');
+}
+
+function startStaffEdit(id) {
+  const view = document.getElementById('staff-view-' + id);
+  const edit = document.getElementById('staff-edit-' + id);
+  const acts = document.getElementById('staff-actions-' + id);
+  if (view) view.style.display = 'none';
+  if (edit) edit.style.display = 'flex';
+  if (acts) acts.style.display = 'none';
+  const inp = document.getElementById('staff-edit-name-' + id);
+  if (inp) { setTimeout(() => { inp.focus(); inp.select(); }, 50); }
+}
+
+function cancelStaffEdit(id) {
+  const view = document.getElementById('staff-view-' + id);
+  const edit = document.getElementById('staff-edit-' + id);
+  const acts = document.getElementById('staff-actions-' + id);
+  if (view) view.style.display = '';
+  if (edit) edit.style.display = 'none';
+  if (acts) acts.style.display = 'flex';
+}
+
+async function saveStaffEdit(id) {
+  const newName = document.getElementById('staff-edit-name-' + id)?.value.trim();
+  const newDept = document.getElementById('staff-edit-dept-' + id)?.value || null;
+  if (!newName) { toast('Nama tidak boleh kosong', 'error'); return; }
+  try {
+    // Get old name before update
+    const staffList = await getStaff();
+    const oldStaff = staffList.find(s => s.id === id);
+    const oldName = oldStaff ? oldStaff.name : null;
+
+    try { await dbUpdate('staff', r => r.id === id, { name: newName, dept: newDept || null }); }
+    catch(e) { dbErr(e.message); return; }
+
+    // Sync rename to departments table
+    if (oldName && oldName !== newName) {
+      await dbUpdate('logins', r => r.name === oldName, { name: newName });
+    }
+
+    await renderStaffTable();
+    await renderDepts();
+    await updateStaffList();
+    toast('\u2705 Data staff diperbarui', 'success');
+  } catch(e) { console.error('[saveStaffEdit]', e); toast('\u274C Gagal simpan', 'error'); }
+}
+
+function deleteStaffRow(id, name) {
+  openConfirm('Hapus Staff', 'Hapus "' + name + '" dari daftar staff?', async () => {
+    try { await dbDelete('staff', r => r.id === id); }
+    catch(e) { dbErr(e.message); return; }
+    await dbDelete('logins', r => r.name === name);
+    closeModal('modal-confirm');
+    await renderStaffTable();
+    await renderDepts();
+    await updateStaffList();
+    toast('\uD83D\uDDD1 ' + name + ' dihapus', 'info');
+  });
 }
 
 // ── Active staff profile state ──
@@ -5833,10 +5866,8 @@ async function spHandlePhotoUpload(event) {
     const dataUrl = e.target.result;
     const compressed = await _compressImage(dataUrl, 300, 300, 0.82);
 
-    const { error } = await sbQuery(() =>
-      sb.from('staff').update({ photo: compressed }).eq('id', _spCurrentStaff.id)
-    );
-    if (error) { sbErr(error); return; }
+    try { await dbUpdate('staff', r => r.id === _spCurrentStaff.id, { photo: compressed }); }
+    catch(e) { dbErr(e.message); return; }
 
     _spCurrentStaff.photo = compressed;
     const initials = _spCurrentStaff.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
@@ -5870,10 +5901,8 @@ function _compressImage(dataUrl, maxW, maxH, quality) {
 
 async function spRemovePhoto() {
   if (!_spCurrentStaff) return;
-  const { error } = await sbQuery(() =>
-    sb.from('staff').update({ photo: null }).eq('id', _spCurrentStaff.id)
-  );
-  if (error) { sbErr(error); return; }
+  try { await dbUpdate('staff', r => r.id === _spCurrentStaff.id, { photo: null }); }
+  catch(e) { dbErr(e.message); return; }
   _spCurrentStaff.photo = null;
   const initials = _spCurrentStaff.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
   _spUpdateAvatarEl(document.getElementById('sp-avatar'), _spCurrentStaff, initials);
@@ -5987,8 +6016,8 @@ function spDeleteStaff() {
   if (!_spCurrentStaff) return;
   const s = _spCurrentStaff;
   openConfirm('Hapus Staff', `Hapus "${s.name}" dari daftar staff?`, async () => {
-    const { error } = await sbQuery(() => sb.from('staff').delete().eq('id', s.id));
-    if (error) { sbErr(error); return; }
+    try { await dbDelete('staff', r => r.id === s.id); }
+    catch(e) { dbErr(e.message); return; }
     closeModal('modal-confirm');
     closeModal('modal-staff-profile');
     await renderStaffTable();
@@ -5999,8 +6028,8 @@ function spDeleteStaff() {
 
 async function removeStaff(id) {
   try {
-    const { error } = await sbQuery(() => sb.from('staff').delete().eq('id', id));
-    if (error) { sbErr(error); return; }
+    try { await dbDelete('staff', r => r.id === id); }
+    catch(e) { dbErr(e.message); return; }
     await renderStaffTable();
     await updateStaffList();
     toast('Staff dihapus', 'info');
@@ -6021,6 +6050,29 @@ function showAddStaffQR() {
   if (!gen) return;
   gen.style.display = gen.style.display === 'none' ? '' : 'none';
   if (gen.style.display !== 'none') {
+    const inp = document.getElementById('qr-gen-name');
+    if (inp) { inp.value = ''; inp.focus(); }
+    const qrDiv = document.getElementById('qrcode');
+    if (qrDiv) qrDiv.innerHTML = '';
+    const dlBtn = document.getElementById('qr-download-btn');
+    if (dlBtn) dlBtn.style.display = 'none';
+    populateQRDeptSelect();
+  }
+}
+
+function toggleQRGenerator() {
+  const gen = document.getElementById('staff-qr-generator');
+  const card = document.getElementById('sec-method-qr');
+  if (!gen) return;
+  const isOpen = gen.style.display !== 'none';
+  gen.style.display = isOpen ? 'none' : 'block';
+  if (card) {
+    card.style.border = isOpen ? '2px solid var(--border)' : '2px solid var(--accent2)';
+    card.style.background = isOpen ? 'var(--surface2)' : 'rgba(126,184,212,0.10)';
+    const label = card.querySelector('div:nth-child(2)');
+    if (label) label.style.color = isOpen ? 'var(--text)' : 'var(--accent2)';
+  }
+  if (!isOpen) {
     const inp = document.getElementById('qr-gen-name');
     if (inp) { inp.value = ''; inp.focus(); }
     const qrDiv = document.getElementById('qrcode');
@@ -6077,8 +6129,8 @@ async function genQR(skipSave) {
     try {
       const staff = await getStaff();
       if (!staff.find(s => s.name.toLowerCase() === name.toLowerCase())) {
-        const { error } = await sbQuery(() => sb.from('staff').insert({ name, dept: dept || null }));
-        if (error) { sbErr(error); return; }
+        try { await dbInsert('staff', { name, dept: dept || null }); }
+        catch(e) { dbErr(e.message); return; }
         await renderStaffTable();
         await updateStaffList();
         toast(`✅ QR generated & "${name}" tersimpan`, 'success');
@@ -6233,9 +6285,6 @@ function startQRPunchClock() {
 }
 
 async function userQRPunch(mode) {
-  const ok = await checkGPSBeforePunch();
-  if (!ok) return;
-
   _qrPunchMode = mode;
   const readerEl = document.getElementById('qr-user-reader');
   const statusEl = document.getElementById('qr-user-scan-status');
@@ -6279,29 +6328,25 @@ async function userQRPunch(mode) {
     const timeStr = new Date().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
 
     if (_qrPunchMode === 'in') {
-      const { data: existing } = await sbQuery(() => sb
-        .from('attendance_records').select('id')
-        .eq('staff_name', scannedName).eq('branch', currentBranch())
-        .eq('date', date).is('punch_out', null).maybeSingle());
+      const existing = await dbGetOne('records', r =>
+        r.staff_name === scannedName && r.branch === currentBranch() &&
+        r.date === date && (r.punch_out === null || r.punch_out === undefined));
 
       if (existing) {
         showStatus(`⚠️ ${scannedName} sudah punch in!`, 'background:rgba(251,191,36,0.1);color:var(--warning);border:1px solid rgba(251,191,36,0.25);');
         setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; resetQRPunchButtons(); }, 2500);
         return;
       }
-      const { error: insErr } = await sbQuery(() => sb.from('attendance_records').insert({
-        staff_name: scannedName, branch: currentBranch(), date, shift, punch_in: now, punch_out: null
-      }));
-      if (insErr) { sbErr(insErr); return; }
+      try { await dbInsert('records', { staff_name: scannedName, branch: currentBranch(), date, shift, punch_in: now, punch_out: null }); }
+      catch(e) { dbErr(e.message); return; }
       showStatus(`✅ PUNCH IN — ${timeStr}`, 'background:rgba(74,222,128,0.1);color:var(--success);border:1px solid rgba(74,222,128,0.25);');
       _showPunchNotif({ name: scannedName, action: 'IN', time: timeStr, extra: shift });
       vibrate([30, 20, 60]);
     } else {
-      const { data: openRecord } = await sbQuery(() => sb
-        .from('attendance_records').select('id, punch_in')
-        .eq('staff_name', scannedName).eq('branch', currentBranch())
-        .eq('date', date).is('punch_out', null)
-        .order('punch_in', { ascending: false }).limit(1).maybeSingle());
+      const openRecord = (await dbGetAll('records',
+        r => r.staff_name === scannedName && r.branch === currentBranch() &&
+             r.date === date && (r.punch_out === null || r.punch_out === undefined),
+        'punch_in', false))[0] ?? null;
 
       if (!openRecord) {
         showStatus('❌ Belum ada punch in aktif', 'background:rgba(248,113,113,0.1);color:var(--danger);border:1px solid rgba(248,113,113,0.25);');
@@ -6319,8 +6364,8 @@ async function userQRPunch(mode) {
         showWorkWarning(scannedName, wh > 0 ? `${wh}j ${wm}m` : `${wm}m`, rh > 0 ? `${rh}j ${rm}m` : `${rm}m`);
         return;
       }
-      const { error: updErr } = await sbQuery(() => sb.from('attendance_records').update({ punch_out: now }).eq('id', openRecord.id));
-      if (updErr) { sbErr(updErr); return; }
+      try { await dbUpdate('records', r => r.id === openRecord.id, { punch_out: now }); }
+      catch(e) { dbErr(e.message); return; }
       showStatus(`🔴 PUNCH OUT — ${timeStr}`, 'background:rgba(248,113,113,0.1);color:var(--danger);border:1px solid rgba(248,113,113,0.25);');
       _showPunchNotif({ name: scannedName, action: 'OUT', time: timeStr, extra: '' });
       vibrate([30, 20, 60]);
@@ -6507,12 +6552,8 @@ async function showStaffSummary(name) {
 
 async function getShifts() {
   try {
-    const { data, error } = await sbQuery(() => sb.from('shifts').select('*').order('sort_order'));
-    if (error) {
-      console.warn('[getShifts] error:', error.message);
-      return { data: [], error };
-    }
-    const mapped = (data || []).map(s => ({
+    const rows = await dbGetAll('shifts', null, 'sort_order', true);
+    const mapped = rows.map(s => ({
       ...s,
       start: s.start_time || s.start || '',
       end:   s.end_time   || s.end   || '',
@@ -6657,7 +6698,7 @@ async function updateUnifiedShift(rowIdx, field, value) {
   if (row.dbId) {
     const fieldMap = { label: 'name', color: 'color', start: 'start_time', end: 'end_time' };
     const updates  = { name: label, color, start_time: start, end_time: end };
-    await sbQuery(() => sb.from('shifts').update(updates).eq('id', row.dbId));
+    await dbUpdate('shifts', r => r.id === row.dbId, updates);
   }
 
   // Update SHIFT_CODES if this row has a scIdx
@@ -6685,8 +6726,8 @@ async function deleteUnifiedShift(rowIdx) {
   if (!row) return;
 
   if (row.dbId) {
-    const { error } = await sbQuery(() => sb.from('shifts').delete().eq('id', row.dbId));
-    if (error) { sbErr(error); return; }
+    try { await dbDelete('shifts', r => r.id === row.dbId); }
+    catch(e) { dbErr(e.message); return; }
   }
 
   if (row.scIdx >= 0) {
@@ -6951,9 +6992,7 @@ async function addShift() {
     // 1. Save to shifts DB (for punch auto-detect)
     const shifts = await getShiftsArr();
     if (!shifts.find(s => s.name.toLowerCase() === name.toLowerCase())) {
-      await sbQuery(() => sb.from('shifts').insert({
-        name, start_time: start, end_time: end, color, sort_order: shifts.length
-      }));
+      await dbInsert('shifts', { name, start_time: start, end_time: end, color, sort_order: shifts.length });
     }
 
     // 2. Save to SHIFT_CODES (for schedule grid)
@@ -6981,19 +7020,31 @@ async function addShift() {
 // editShiftField, removeShift, saveShiftChanges replaced by updateUnifiedShift / deleteUnifiedShift
 
 // ════════════════════════════════════════
+// ── Unified User/Dept Tab Switcher ──
+function switchUdTab(tab) {
+  const panels = { dept: 'ud-panel-dept', staff: 'ud-panel-staff', security: 'ud-panel-security' };
+  const tabs   = { dept: 'ud-tab-dept',   staff: 'ud-tab-staff',   security: 'ud-tab-security'   };
+  Object.keys(panels).forEach(key => {
+    const panel = document.getElementById(panels[key]);
+    const btn   = document.getElementById(tabs[key]);
+    const active = key === tab;
+    if (panel) panel.style.display = active ? 'block' : 'none';
+    if (btn) {
+      btn.style.background = active ? 'var(--accent-glow)' : 'transparent';
+      btn.style.color      = active ? 'var(--accent)'      : 'var(--muted)';
+    }
+  });
+}
+
 //  DEPARTMENTS
 // ════════════════════════════════════════
 
-// Admin dept selalu di-inject di runtime, tidak disimpan ke Supabase
+// Admin dept selalu di-inject di runtime
 const ADMIN_DEPT = { id: '__admin__', name: 'Admin', pin: '95489854', is_admin: true, role: 'admin' };
 
 async function getDepts() {
   try {
-    const { data, error } = await sbQuery(() =>
-      sb.from('departments').select('*').order('sort_order')
-    );
-    if (error || !data) return [ADMIN_DEPT, ..._getCachedDepts().filter(d => d.id !== '__admin__')];
-    localStorage.setItem('hat_depts_cache', JSON.stringify(data));
+    const data = await dbGetAll('logins', null, 'sort_order', true);
     const normalized = data.map((d, i) => ({
       ...d,
       role:       d.role || (d.is_admin ? 'admin' : 'staff'),
@@ -7002,7 +7053,7 @@ async function getDepts() {
     return [ADMIN_DEPT, ...normalized];
   } catch (e) {
     console.error('[getDepts]', e);
-    return [ADMIN_DEPT, ..._getCachedDepts().filter(d => d.id !== '__admin__')];
+    return [ADMIN_DEPT];
   }
 }
 
@@ -7016,13 +7067,7 @@ let _deptDragSrc = null;
 
 async function renderDepts() {
   const depts = await getDepts();
-  const list  = document.getElementById('dept-list');
-  if (!list) return;
-
-  if (!depts.length) {
-    list.innerHTML = '<div class="empty" style="padding:16px 0 8px;"><div class="icon">🏷️</div>No users yet</div>';
-    return;
-  }
+  const staffList = await getStaff(); // actual staff from staff table
 
   const roleConfig = {
     admin:   { icon: '🛡️', label: 'ADMIN',   bg: 'rgba(248,113,113,0.15)', color: 'var(--danger)',  avatarBg: 'rgba(248,113,113,0.15)' },
@@ -7030,38 +7075,70 @@ async function renderDepts() {
     staff:   { icon: '🏷️', label: 'STAFF',   bg: 'rgba(110,231,183,0.12)', color: 'var(--accent)',  avatarBg: 'rgba(110,231,183,0.10)' },
   };
 
-  // Fixed items: Admin (hardcoded) + Manager, F&B Service, F&B Product (seeded defaults)
-  const FIXED_NAMES = new Set(['Admin', 'Manager', 'F&B Service', 'F&B Product']);
+  const FIXED_NAMES = new Set(['Admin', 'Manager']);
 
-  const fixedTop = depts.filter(d => d.id === '__admin__' || FIXED_NAMES.has(d.name));
-  const moveable = depts.filter(d => d.id !== '__admin__' && !FIXED_NAMES.has(d.name));
+  // Admin list = Admin + Manager role entries
+  const adminDepts  = depts.filter(d => d.role === 'admin' || d.role === 'manager' || d.id === '__admin__');
 
-  list.innerHTML = '';
+  // Staff Login & PIN: build from actual staff list, merged with dept PIN info
+  const deptPinMap = {};
+  depts.forEach(d => { deptPinMap[d.name.toLowerCase()] = d; });
+  const staffLoginItems = staffList.map(s => ({
+    id:       deptPinMap[s.name.toLowerCase()]?.id || s.id,
+    name:     s.name,
+    pin:      deptPinMap[s.name.toLowerCase()]?.pin || '',
+    is_admin: false,
+    role:     'staff',
+  }));
 
-  // Render fixed Admin row (no drag, no arrows)
-  fixedTop.forEach(d => {
-    const rc  = roleConfig[d.role] || roleConfig.admin;
-    const row = _makeDeptRow(d, rc, false, moveable);
-    list.appendChild(row);
-  });
+  // ── Render Admin & Manager card ──
+  const adminList = document.getElementById('dept-list-admin');
+  if (adminList) {
+    adminList.innerHTML = '';
+    if (!adminDepts.length) {
+      adminList.innerHTML = '<div class="empty" style="padding:10px 0 4px;"><div class="icon">🏢</div>Belum ada department</div>';
+    } else {
+      const fixedAdmin = adminDepts.filter(d => d.id === '__admin__' || FIXED_NAMES.has(d.name));
+      const moveAdmin  = adminDepts.filter(d => d.id !== '__admin__' && !FIXED_NAMES.has(d.name));
+      fixedAdmin.forEach(d => {
+        const rc  = roleConfig[d.role] || roleConfig.admin;
+        const row = _makeDeptRow(d, rc, false, moveAdmin);
+        adminList.appendChild(row);
+      });
+      moveAdmin.forEach((d, idx) => {
+        const rc  = roleConfig[d.role] || roleConfig.manager;
+        const row = _makeDeptRow(d, rc, true, moveAdmin, idx);
+        adminList.appendChild(row);
+      });
+    }
+  }
 
-  // Render moveable rows with drag + arrows
-  moveable.forEach((d, idx) => {
-    const rc  = roleConfig[d.role] || roleConfig.staff;
-    const row = _makeDeptRow(d, rc, true, moveable, idx);
-    list.appendChild(row);
-  });
+  // ── Render Staff Login & PIN (from staff table) ──
+  const deptList = document.getElementById('dept-list');
+  if (deptList) {
+    deptList.innerHTML = '';
+    if (!staffLoginItems.length) {
+      deptList.innerHTML = '<div class="empty" style="padding:10px 0 4px;"><div class="icon">👤</div>Belum ada staff</div>';
+    } else {
+      staffLoginItems.forEach((d, idx) => {
+        const rc  = roleConfig.staff;
+        const row = _makeDeptRow(d, rc, true, staffLoginItems, idx);
+        deptList.appendChild(row);
+      });
+    }
+  }
 }
 
 function _makeDeptRow(d, rc, draggable, moveable, idx) {
   const isHardAdmin = d.id === '__admin__';
+  const isAdminRole = d.role === 'admin' || d.role === 'manager' || isHardAdmin;
   const total = moveable ? moveable.length : 0;
 
   const row = document.createElement('div');
   row.className = 'user-item dept-row';
   row.dataset.id   = d.id;
   row.dataset.name = d.name;
-  row.style.cssText = 'padding:9px 12px;position:relative;transition:opacity 0.15s,transform 0.15s;';
+  row.style.cssText = 'padding:12px 14px;position:relative;transition:opacity 0.15s,transform 0.15s;border-radius:14px;border:1px solid var(--border);background:var(--card-bg);box-shadow:0 2px 8px rgba(0,0,0,0.10);margin-bottom:0;';
 
   if (draggable) {
     row.draggable = true;
@@ -7075,6 +7152,17 @@ function _makeDeptRow(d, rc, draggable, moveable, idx) {
     row.addEventListener('touchend',   _deptTouchEnd,   { passive: true });
   }
 
+  // For staff rows: show PIN status + pattern indicator
+  const pinStatus = isAdminRole ? '' :
+    `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${d.pin ? '🔐 PIN aktif' : '🔓 Tanpa PIN'}</div>`;
+
+  // Buttons: admin/manager only get PIN key; staff get PIN key + pattern button
+  const patternMap = getPatternMap();
+  const hasPattern = !isAdminRole && patternMap[d.name] ? '🔷' : '';
+  const patternBtn = !isAdminRole
+    ? `<button class="btn btn-sm" style="padding:6px 10px;font-size:12px;background:rgba(155,135,232,0.12);color:#9b87e8;border:1px solid rgba(155,135,232,0.28);" title="Security Pattern" onclick="openStaffPatternSheet('${esc(d.name)}')">${hasPattern || '🔷'}</button>`
+    : '';
+
   row.innerHTML = `
     ${draggable ? `<div class="dept-drag-handle" title="Seret untuk mengubah urutan">⠿</div>` : `<div style="width:20px;flex-shrink:0;"></div>`}
     <div class="user-avatar" style="background:${rc.avatarBg};font-size:15px;flex-shrink:0;">${rc.icon}</div>
@@ -7084,7 +7172,7 @@ function _makeDeptRow(d, rc, draggable, moveable, idx) {
         <span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:5px;background:${rc.bg};color:${rc.color};letter-spacing:0.4px;">${rc.label}</span>
         ${!draggable && !isHardAdmin ? `<span style="font-size:9px;color:var(--muted);background:var(--surface2);padding:1px 5px;border-radius:4px;border:1px solid var(--border);">🔒 fixed</span>` : ''}
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:2px;">${d.pin ? '🔐 PIN aktif' : '🔓 Tanpa PIN'}</div>
+      ${pinStatus}
     </div>
     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
       ${draggable ? `
@@ -7093,16 +7181,14 @@ function _makeDeptRow(d, rc, draggable, moveable, idx) {
           <button class="dept-arrow-btn" onclick="deptMoveDown('${esc(d.name)}')" ${idx === total - 1 ? 'disabled' : ''} title="Turun">▼</button>
         </div>
       ` : ''}
-      <button class="btn btn-sm btn-accent2" style="padding:6px 10px;font-size:12px;" onclick="openDeptPinSheet('${esc(d.name)}')">🔑</button>
-      ${!isHardAdmin
-        ? `<span class="user-del" onclick="removeDept('${esc(d.name)}')" style="padding:4px 6px;">×</span>`
-        : '<span style="width:20px;display:inline-block;"></span>'}
+      ${patternBtn}
+      ${!isHardAdmin ? `<button class="btn btn-sm btn-accent2" style="padding:6px 10px;font-size:12px;" onclick="openDeptPinSheet('${esc(d.name)}')">🔑</button>` : ''}
     </div>`;
   return row;
 }
 
 // ── Arrow button reorder ──
-const _FIXED_DEPTS = new Set(['Admin', 'Manager', 'F&B Service', 'F&B Product']);
+const _FIXED_DEPTS = new Set(['Admin', 'Manager']);
 
 async function deptMoveUp(name) {
   const depts    = await getDepts();
@@ -7123,9 +7209,9 @@ async function deptMoveDown(name) {
 }
 
 async function _saveDeptOrder(orderedMoveable) {
-  await Promise.all(orderedMoveable.map((d, i) =>
-    sbQuery(() => sb.from('departments').update({ sort_order: i }).eq('id', d.id))
-  ));
+  for (let i = 0; i < orderedMoveable.length; i++) {
+    await dbUpdate('logins', r => r.id === orderedMoveable[i].id, { sort_order: i });
+  }
   await renderDepts();
 }
 
@@ -7140,7 +7226,7 @@ function _deptDragStart(e) {
 function _deptDragOver(e) {
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
-  const FIXED = new Set(['Admin', 'Manager', 'F&B Service', 'F&B Product']);
+  const FIXED = new Set(['Admin', 'Manager']);
   if (this !== _deptDragSrc && !FIXED.has(this.dataset.name)) {
     this.style.borderColor = 'var(--accent)';
     this.style.background  = 'var(--accent-glow)';
@@ -7154,7 +7240,7 @@ function _deptDragLeave() {
 
 async function _deptDrop(e) {
   e.preventDefault();
-  const FIXED = new Set(['Admin', 'Manager', 'F&B Service', 'F&B Product']);
+  const FIXED = new Set(['Admin', 'Manager']);
   if (!_deptDragSrc || this === _deptDragSrc || FIXED.has(this.dataset.name)) return;
   this.style.borderColor = '';
   this.style.background  = '';
@@ -7196,7 +7282,7 @@ function _deptTouchMove(e) {
   const targetRow = el?.closest('.dept-row');
   document.querySelectorAll('.dept-row').forEach(r => r.style.borderColor = '');
   if (targetRow && targetRow !== _touchDragEl && targetRow.dataset.id !== '__admin__') {
-    const FIXED = new Set(['Admin', 'Manager', 'F&B Service', 'F&B Product']);
+    const FIXED = new Set(['Admin', 'Manager']);
     if (!FIXED.has(targetRow.dataset.name)) targetRow.style.borderColor = 'var(--accent)';
   }
 }
@@ -7208,7 +7294,7 @@ async function _deptTouchEnd(e) {
   const el = document.elementFromPoint(touch.clientX, touch.clientY);
   const targetRow = el?.closest('.dept-row');
   document.querySelectorAll('.dept-row').forEach(r => r.style.borderColor = '');
-  const FIXED = new Set(['Admin', 'Manager', 'F&B Service', 'F&B Product']);
+  const FIXED = new Set(['Admin', 'Manager']);
 
   if (targetRow && targetRow !== _touchDragEl && !FIXED.has(targetRow.dataset.name)) {
     const depts    = await getDepts();
@@ -7224,9 +7310,7 @@ async function _deptTouchEnd(e) {
   _touchDragEl = null;
 }
 
-async function addDept() {
-  const name = document.getElementById('new-dept-name').value.trim();
-  const role = document.getElementById('new-dept-role')?.value || 'staff';
+async function addDept(name, role) {
   if (!name) return;
   try {
     const depts = await getDepts();
@@ -7235,10 +7319,8 @@ async function addDept() {
     }
     const is_admin = role === 'admin';
     const sort_order = depts.filter(d => d.id !== '__admin__').length;
-    const { error } = await sbQuery(() => sb.from('departments').insert({ name, pin: '', is_admin, role, sort_order }));
-    if (error) { sbErr(error); return; }
-    document.getElementById('new-dept-name').value = '';
-    if (document.getElementById('new-dept-role')) document.getElementById('new-dept-role').value = 'staff';
+    try { await dbInsert('logins', { name, pin: '', is_admin, role, sort_order }); }
+    catch(e) { dbErr(e.message); return; }
     await renderDepts();
     await populateLoginDepts();
     const roleLabel = role === 'admin' ? 'Admin' : role === 'manager' ? 'Manager' : 'Staff';
@@ -7246,10 +7328,67 @@ async function addDept() {
   } catch (e) { console.error('[addDept]', e); toast('❌ Gagal tambah user', 'error'); }
 }
 
+
+// ── Sync staff table → departments (staff login) — nama saja ──
+async function syncStaffToDepts() {
+  try {
+    const [staffList, depts] = await Promise.all([getStaff(), getDepts()]);
+    const deptNames = new Set(depts.map(d => d.name.toLowerCase()));
+    const toAdd = staffList.filter(s => !deptNames.has(s.name.toLowerCase()));
+    if (!toAdd.length) return;
+    const baseOrder = depts.filter(d => d.id !== '__admin__').length;
+    for (let i = 0; i < toAdd.length; i++) {
+      const s = toAdd[i];
+      // Hanya sync nama — tidak membawa dept ke login entry
+      await dbInsert('logins', { name: s.name, pin: '', is_admin: false, role: 'staff', sort_order: baseOrder + i });
+    }
+    if (toAdd.length) await renderDepts();
+  } catch(e) { console.error('[syncStaffToDepts]', e); }
+}
+async function addDeptAdmin() {
+  const name = document.getElementById('new-dept-name')?.value.trim();
+  const role = document.getElementById('new-dept-role')?.value || 'manager';
+  if (!name) { toast('Isi nama department terlebih dahulu', 'error'); return; }
+  await addDept(name, role);
+  if (document.getElementById('new-dept-name')) document.getElementById('new-dept-name').value = '';
+  if (document.getElementById('new-dept-role')) document.getElementById('new-dept-role').value = 'manager';
+}
+
+async function addDeptStaff() {
+  const name = document.getElementById('new-staff-name')?.value.trim();
+  const dept = document.getElementById('new-staff-dept')?.value || null;
+  if (!name) { toast('Isi nama staff terlebih dahulu', 'error'); return; }
+  if (!dept) { toast('Pilih department terlebih dahulu', 'error'); return; }
+  try {
+    // Insert into staff table
+    const existing = await getStaff();
+    if (!existing.find(s => s.name.toLowerCase() === name.toLowerCase())) {
+      try { await dbInsert('staff', { name, dept: dept || null }); }
+      catch(e) { dbErr(e.message); return; }
+    } else {
+      toast('Staff sudah ada di daftar', 'error'); return;
+    }
+  } catch(e) { console.error('[addDeptStaff staff insert]', e); return; }
+  // Sync nama ke departments (login/PIN) — tanpa dept
+  try {
+    const depts = await getDepts();
+    if (!depts.find(d => d.name.toLowerCase() === name.toLowerCase())) {
+      const sort_order = depts.filter(d => d.id !== '__admin__').length;
+      await dbInsert('logins', { name, pin: '', is_admin: false, role: 'staff', sort_order });
+    }
+  } catch(e) { console.error('[addDeptStaff dept sync]', e); }
+  if (document.getElementById('new-staff-name')) document.getElementById('new-staff-name').value = '';
+  if (document.getElementById('new-staff-dept')) document.getElementById('new-staff-dept').value = '';
+  await renderStaffTable();
+  await renderDepts();
+  await updateStaffList();
+  toast('\u2705 Staff "' + name + '" ditambahkan', 'success');
+}
+
 async function removeDept(name) {
   try {
-    const { error } = await sbQuery(() => sb.from('departments').delete().eq('name', name));
-    if (error) { sbErr(error); return; }
+    try { await dbDelete('logins', r => r.name === name); }
+    catch(e) { dbErr(e.message); return; }
     await renderDepts();
     await populateLoginDepts();
     toast('Department removed', 'info');
@@ -7264,10 +7403,7 @@ async function openDeptPinSheet(name) {
     document.getElementById('pin-current-info').textContent = '✅ Admin PIN aktif (hardcoded).';
   } else {
     try {
-      const { data } = await sbQuery(() =>
-        sb.from('departments').select('pin').eq('name', name).maybeSingle()
-      );
-      const cur = data?.pin || '';
+      const cur = (await dbGetOne('logins', r => r.name === name))?.pin || '';
       document.getElementById('pin-current-info').textContent = cur
         ? '✅ PIN saat ini sudah diset. Isi baru untuk ubah, kosongkan untuk hapus.'
         : 'Belum ada PIN untuk departemen ini.';
@@ -7287,18 +7423,188 @@ async function saveDeptPin() {
     toast('⚠️ Admin PIN tidak dapat diubah dari sini', 'error'); return;
   }
   try {
-    const { error } = await sbQuery(() => sb.from('departments').update({ pin }).eq('name', name));
-    if (error) { sbErr(error); return; }
+    try { await dbUpdate('logins', r => r.name === name, { pin }); }
+    catch(e) { dbErr(e.message); return; }
     await renderDepts();
     closeModal('modal-dept-pin');
     toast(pin ? `🔐 PIN "${name}" disimpan` : `🔓 PIN "${name}" dihapus`, 'success');
   } catch (e) { console.error('[saveDeptPin]', e); toast('❌ Gagal simpan PIN', 'error'); }
 }
 
-// ════════════════════════════════════════
-//  EXPORT
-// ════════════════════════════════════════
-function exportExcel() { exportToExcel(); }
+// ── Staff Pattern Sheet ──
+// Variables for staff pattern modal
+let _staffPatternName  = '';
+let _staffPattern      = { seq: [], drawing: false, cur: null, pts: [], r: 0 };
+let _staffPatternTimer = null;
+
+function openStaffPatternSheet(name) {
+  _staffPatternName = name;
+  const overlay = document.getElementById('modal-staff-pattern');
+  if (!overlay) return;
+
+  // Title
+  const titleEl = document.getElementById('spm-staff-name');
+  if (titleEl) titleEl.textContent = name;
+
+  // Show current pattern status
+  const statusEl = document.getElementById('spm-current-status');
+  if (statusEl) {
+    const patterns = getPatternMap();
+    statusEl.textContent = patterns[name]
+      ? '✅ Pattern sudah diset. Gambar baru untuk mengubah.'
+      : 'Belum ada pattern. Gambar pattern baru di bawah.';
+  }
+
+  // Reset canvas
+  _staffPattern = { seq: [], drawing: false, cur: null, pts: [], r: 0 };
+  const errEl = document.getElementById('spm-error');
+  if (errEl) { errEl.textContent = ''; errEl.style.opacity = '0'; }
+
+  overlay.classList.add('active');
+  setTimeout(_initStaffPatternCanvas, 80);
+}
+
+function closeStaffPatternSheet() {
+  const overlay = document.getElementById('modal-staff-pattern');
+  if (overlay) overlay.classList.remove('active');
+  _staffPattern = { seq: [], drawing: false, cur: null, pts: [], r: 0 };
+}
+
+function _initStaffPatternCanvas() {
+  const canvas = document.getElementById('spm-canvas');
+  if (!canvas) return;
+  const size = canvas.width;
+  const pts  = _buildPatternDotPositions(size);
+  const r    = size * 0.075;
+  _staffPattern = { seq: [], drawing: false, cur: null, pts, r, canvas };
+
+  function _pos(e) {
+    const rect  = canvas.getBoundingClientRect();
+    const scaleX = canvas.width  / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const src = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - rect.left) * scaleX, y: (src.clientY - rect.top) * scaleY };
+  }
+  function _onStart(e) {
+    e.preventDefault();
+    const pos = _pos(e);
+    const hit = _patternHitTest(pts, pos.x, pos.y, r * 1.4);
+    if (!hit) return;
+    _staffPattern.seq = [hit.idx]; _staffPattern.drawing = true; _staffPattern.cur = pos;
+    const errEl = document.getElementById('spm-error');
+    if (errEl) { errEl.textContent = ''; errEl.style.opacity = '0'; }
+    _spmDraw();
+  }
+  function _onMove(e) {
+    e.preventDefault();
+    if (!_staffPattern.drawing) return;
+    _staffPattern.cur = _pos(e);
+    const hit = _patternHitTest(pts, _staffPattern.cur.x, _staffPattern.cur.y, r * 1.1);
+    if (hit && !_staffPattern.seq.includes(hit.idx)) { _staffPattern.seq.push(hit.idx); vibrate(15); }
+    _spmDraw();
+  }
+  function _onEnd(e) {
+    e.preventDefault();
+    _staffPattern.drawing = false; _staffPattern.cur = null;
+    _spmDraw();
+    if (_staffPattern.seq.length >= 4) {
+      const errEl = document.getElementById('spm-error');
+      if (errEl) { errEl.textContent = '✅ Pattern siap — tekan Simpan'; errEl.style.opacity='1'; errEl.style.color='var(--success)'; }
+    } else if (_staffPattern.seq.length > 0) {
+      const errEl = document.getElementById('spm-error');
+      if (errEl) { errEl.textContent = 'Minimal 4 titik'; errEl.style.opacity='1'; errEl.style.color='var(--danger)'; }
+      setTimeout(() => { _staffPattern.seq=[]; _staffPattern.cur=null; _spmDraw(); }, 900);
+    }
+  }
+  // Remove old listeners
+  ['mousedown','mousemove','mouseup','touchstart','touchmove','touchend'].forEach(ev => {
+    canvas.removeEventListener(ev, canvas['_spm_' + ev]);
+  });
+  canvas._spm_mousedown  = _onStart; canvas._spm_mousemove = _onMove; canvas._spm_mouseup = _onEnd;
+  canvas._spm_touchstart = _onStart; canvas._spm_touchmove = _onMove; canvas._spm_touchend = _onEnd;
+  canvas.addEventListener('mousedown',  _onStart, { passive: false });
+  canvas.addEventListener('mousemove',  _onMove,  { passive: false });
+  canvas.addEventListener('mouseup',    _onEnd,   { passive: false });
+  canvas.addEventListener('touchstart', _onStart, { passive: false });
+  canvas.addEventListener('touchmove',  _onMove,  { passive: false });
+  canvas.addEventListener('touchend',   _onEnd,   { passive: false });
+  _spmDraw();
+}
+
+function _spmDraw() {
+  const canvas = document.getElementById('spm-canvas');
+  if (!canvas) return;
+  const ctx  = canvas.getContext('2d');
+  const size = canvas.width;
+  const { pts, r, seq, drawing, cur } = _staffPattern;
+  const style  = getComputedStyle(document.documentElement);
+  const accent = '#9b87e8';
+  const border = style.getPropertyValue('--border').trim() || '#333';
+  const muted  = style.getPropertyValue('--muted').trim()  || '#888';
+
+  ctx.clearRect(0, 0, size, size);
+  if (seq.length > 1) {
+    ctx.beginPath(); ctx.strokeStyle = accent; ctx.lineWidth = 2.5;
+    ctx.globalAlpha = 0.7; ctx.lineCap = 'round';
+    seq.forEach((idx, i) => { const p = pts[idx]; i === 0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y); });
+    ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  if (drawing && cur && seq.length > 0) {
+    const last = pts[seq[seq.length-1]];
+    ctx.beginPath(); ctx.strokeStyle = accent; ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.4; ctx.setLineDash([4,4]);
+    ctx.moveTo(last.x,last.y); ctx.lineTo(cur.x,cur.y);
+    ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
+  pts.forEach(p => {
+    const active = seq.includes(p.idx);
+    ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2);
+    ctx.strokeStyle = active ? accent : border; ctx.lineWidth = active ? 2 : 1.5;
+    ctx.globalAlpha = active ? 1 : 0.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(p.x,p.y,r*0.35,0,Math.PI*2);
+    ctx.fillStyle = active ? accent : muted; ctx.globalAlpha = active ? 1 : 0.4; ctx.fill();
+    ctx.globalAlpha = 1;
+    if (active) { ctx.beginPath(); ctx.arc(p.x,p.y,r*0.65,0,Math.PI*2); ctx.fillStyle=accent; ctx.globalAlpha=0.12; ctx.fill(); ctx.globalAlpha=1; }
+  });
+}
+
+function spmClear() {
+  _staffPattern.seq = []; _staffPattern.drawing = false; _staffPattern.cur = null;
+  const errEl = document.getElementById('spm-error');
+  if (errEl) { errEl.textContent = ''; errEl.style.opacity = '0'; }
+  _spmDraw();
+}
+
+function spmSave() {
+  if (_staffPattern.seq.length < 4) {
+    const errEl = document.getElementById('spm-error');
+    if (errEl) { errEl.textContent = 'Gambar pattern minimal 4 titik terlebih dahulu'; errEl.style.opacity='1'; errEl.style.color='var(--danger)'; }
+    return;
+  }
+  const map = getPatternMap();
+  map[_staffPatternName] = encodePattern(_staffPattern.seq);
+  localStorage.setItem('hat_pattern_map', JSON.stringify(map));
+  toast(`🔷 Pattern "${_staffPatternName}" disimpan`, 'success');
+  vibrate([20, 10, 40]);
+  closeStaffPatternSheet();
+  renderDepts();
+}
+
+function spmDelete() {
+  if (!_staffPatternName) return;
+  const map = getPatternMap();
+  if (!map[_staffPatternName]) { toast('Tidak ada pattern untuk dihapus', 'error'); return; }
+  openConfirm('Hapus Pattern', `Hapus security pattern untuk "${_staffPatternName}"?`, () => {
+    delete map[_staffPatternName];
+    localStorage.setItem('hat_pattern_map', JSON.stringify(map));
+    closeModal('modal-confirm');
+    toast(`🗑 Pattern "${_staffPatternName}" dihapus`, 'info');
+    closeStaffPatternSheet();
+    renderDepts();
+  });
+}
+
+
 
 // ── Shared export data builder ──
 async function buildExportRows() {
@@ -7306,15 +7612,20 @@ async function buildExportRows() {
   const dateTo   = document.getElementById('export-date-to')?.value   || '';
   const staffF   = document.getElementById('export-staff-filter')?.value || '';
   try {
-    const { data, error } = await sbQuery(() => {
-      let q = sb.from('attendance_records').select('*').order('punch_in', { ascending: false });
-      if (dateFrom) q = q.gte('date', dateFrom);
-      if (dateTo)   q = q.lte('date', dateTo);
-      if (staffF)   q = q.eq('staff_name', staffF);
-      return q;
+    const shifts = await getShiftsArr();
+    const rows = (await dbGetAll('records', null, 'punch_in', false)).filter(r => {
+      if (dateFrom && r.date < dateFrom) return false;
+      if (dateTo   && r.date > dateTo)   return false;
+      if (staffF   && r.staff_name !== staffF) return false;
+      return true;
     });
-    if (error) { sbErr(error); return []; }
-    return (data || []).map(_sbRowToRecord);
+    // Normalise field names for rowToArray compatibility
+    return rows.map(r => ({
+      ...r,
+      name: r.name || r.staff_name,
+      in:   r.in   || (r.punch_in  ? new Date(r.punch_in).getTime()  : null),
+      out:  r.out  || (r.punch_out ? new Date(r.punch_out).getTime() : null),
+    }));
   } catch (e) { console.error('[buildExportRows]', e); return []; }
 }
 
@@ -7639,8 +7950,8 @@ async function exportToPDF() {
 
 function confirmClearData() {
   openConfirm('Clear All Data', `Delete ALL records for "${currentBranch()}"?`, async () => {
-    const { error } = await sbQuery(() => sb.from('attendance_records').delete().eq('branch', currentBranch()));
-    if (error) { sbErr(error); return; }
+    try { await dbDelete('records', r => r.branch === currentBranch()); }
+    catch(e) { dbErr(e.message); return; }
     await refreshAll();
     await renderLog();
     closeModal('modal-confirm');
@@ -7712,15 +8023,15 @@ async function backupData() {
       { data: depts,   error: e4 },
       { data: gpsRows, error: e5 }
     ] = await Promise.all([
-      sbQuery(() => sb.from('attendance_records').select('*')),
-      sbQuery(() => sb.from('staff').select('*')),
-      sbQuery(() => sb.from('shifts').select('*')),
-      sbQuery(() => sb.from('departments').select('*')),
-      sbQuery(() => sb.from('app_settings').select('value').eq('key', 'gps_config'))
+      Promise.resolve({ data: dbGetAll('records'),   error: null }),
+      Promise.resolve({ data: dbGetAll('staff'),     error: null }),
+      Promise.resolve({ data: dbGetAll('shifts'),    error: null }),
+      Promise.resolve({ data: dbGetAll('logins'),    error: null }),
+      Promise.resolve({ data: [dbGetOne('settings', r => r.key === 'gps_config')].filter(Boolean), error: null })
     ]);
 
     const firstErr = e1 || e2 || e3 || e4 || e5;
-    if (firstErr) { sbErr(firstErr); return; }
+    if (firstErr) { dbErr(firstErr?.message || 'Backup error'); return; }
 
     const payload = {
       _version: 3, _app: 'HotelAttendance', _source: 'local',
@@ -7744,464 +8055,11 @@ async function backupData() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     localStorage.setItem('hat_last_backup', new Date().toISOString());
-    await updateBackupStats();
     toast('✅ Backup berhasil didownload', 'success');
   } catch (e) {
     console.error('[backupData]', e);
     toast('❌ Backup gagal — coba lagi', 'error');
   }
-}
-
-// ════════════════════════════════════════
-//  CLOUD AUTO BACKUP
-// ════════════════════════════════════════
-const CLOUD_BACKUP_KEY      = 'hat_cloud_backup_enabled';
-const CLOUD_BACKUP_LAST_KEY = 'hat_cloud_backup_last';
-const CLOUD_BACKUP_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
-let   _autoBackupTimer      = null;
-
-async function buildBackupPayload() {
-  const [
-    { data: records }, { data: staff },
-    { data: shifts  }, { data: depts },
-    { data: gpsRows }
-  ] = await Promise.all([
-    sbQuery(() => sb.from('attendance_records').select('*')),
-    sbQuery(() => sb.from('staff').select('*')),
-    sbQuery(() => sb.from('shifts').select('*')),
-    sbQuery(() => sb.from('departments').select('*')),
-    sbQuery(() => sb.from('app_settings').select('value').eq('key', 'gps_config'))
-  ]);
-  return {
-    _version: 3, _app: 'HotelAttendance', _source: 'cloud',
-    _created: new Date().toISOString(),
-    data: {
-      attendance_records: records || [],
-      staff:              staff   || [],
-      shifts:             shifts  || [],
-      departments:        depts   || [],
-      gps_config:         gpsRows?.[0]?.value || {}
-    }
-  };
-}
-
-async function cloudBackupNow(silent = false) {
-  // Use active cloud client — custom if set, else built-in sb
-  const activeCloud  = getActiveCloud();
-  const cloudClient  = activeCloud ? buildSupabaseClient(activeCloud) : sb;
-
-  if (!cloudClient) {
-    if (!silent) toast('❌ Tidak ada cloud terhubung. Tambahkan Cloud Location terlebih dahulu.', 'error');
-    return false;
-  }
-  const statusEl = document.getElementById('cloud-backup-status');
-  if (!silent && statusEl) {
-    statusEl.style.cssText = 'display:block;margin-bottom:12px;padding:10px 13px;border-radius:10px;font-size:12px;font-weight:600;line-height:1.5;background:rgba(129,140,248,0.1);color:var(--accent2);border:1px solid rgba(129,140,248,0.2);';
-    statusEl.textContent = '⏳ Menyimpan backup ke cloud...';
-  }
-  try {
-    const payload = await buildBackupPayload();
-    const label   = 'backup-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const totalRecords = (payload.data.attendance_records || []).length;
-    const totalStaff   = (payload.data.staff || []).length;
-
-    // Upsert into system_backups table (key = 'latest' always overwritten + dated snapshot)
-    const { error: e1 } = await cloudClient.from('system_backups').upsert({
-      key:     'latest',
-      label:   label,
-      payload: payload,
-      records: totalRecords,
-      staff:   totalStaff,
-      created_at: new Date().toISOString()
-    }, { onConflict: 'key' });
-
-    // Also insert a dated snapshot (keep last 10)
-    const { error: e2 } = await cloudClient.from('system_backups').insert({
-      key:     label,
-      label:   label,
-      payload: payload,
-      records: totalRecords,
-      staff:   totalStaff,
-      created_at: new Date().toISOString()
-    });
-
-    if (e1) throw e1;
-
-    // Prune old snapshots — keep latest 10 dated ones
-    const { data: all } = await cloudClient.from('system_backups')
-      .select('id, key, created_at')
-      .neq('key', 'latest')
-      .order('created_at', { ascending: false });
-    if (all && all.length > 10) {
-      const toDelete = all.slice(10).map(r => r.id);
-      await cloudClient.from('system_backups').delete().in('id', toDelete);
-    }
-
-    const now = new Date().toISOString();
-    localStorage.setItem(CLOUD_BACKUP_LAST_KEY, now);
-    updateCloudBackupUI();
-
-    if (!silent) {
-      if (statusEl) {
-        statusEl.style.cssText = 'display:block;margin-bottom:12px;padding:10px 13px;border-radius:10px;font-size:12px;font-weight:600;line-height:1.5;background:rgba(74,222,128,0.1);color:var(--success);border:1px solid rgba(74,222,128,0.2);';
-        statusEl.textContent = `✅ Cloud backup berhasil — ${totalRecords} records, ${totalStaff} staff`;
-        setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; }, 4000);
-      }
-      toast('✅ Cloud backup berhasil', 'success');
-    }
-    return true;
-  } catch (err) {
-    console.error('[cloudBackupNow]', err);
-    if (!silent) {
-      if (statusEl) {
-        statusEl.style.cssText = 'display:block;margin-bottom:12px;padding:10px 13px;border-radius:10px;font-size:12px;font-weight:600;line-height:1.5;background:rgba(224,112,112,0.12);color:var(--danger);border:1px solid rgba(224,112,112,0.25);';
-        statusEl.textContent = '❌ Cloud backup gagal: ' + (err.message || 'Coba lagi');
-        setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; }, 4000);
-      }
-      toast('❌ Cloud backup gagal', 'error');
-    }
-    return false;
-  }
-}
-
-function toggleAutoBackup(enabled) {
-  localStorage.setItem(CLOUD_BACKUP_KEY, enabled ? '1' : '0');
-  if (enabled) {
-    startAutoBackupTimer();
-    toast('☁️ Auto backup aktif — setiap 24 jam', 'success');
-  } else {
-    stopAutoBackupTimer();
-    toast('Auto backup dimatikan', 'info');
-  }
-  updateCloudBackupUI();
-}
-
-function startAutoBackupTimer() {
-  stopAutoBackupTimer();
-  const last    = localStorage.getItem(CLOUD_BACKUP_LAST_KEY);
-  const elapsed = last ? Date.now() - new Date(last).getTime() : Infinity;
-  const delay   = elapsed >= CLOUD_BACKUP_INTERVAL ? 0 : CLOUD_BACKUP_INTERVAL - elapsed;
-
-  _autoBackupTimer = setTimeout(async () => {
-    await cloudBackupNow(true);
-    toast('☁️ Auto backup selesai', 'success');
-    // Reschedule next
-    _autoBackupTimer = setInterval(() => cloudBackupNow(true), CLOUD_BACKUP_INTERVAL);
-  }, delay);
-}
-
-function stopAutoBackupTimer() {
-  if (_autoBackupTimer) { clearTimeout(_autoBackupTimer); clearInterval(_autoBackupTimer); _autoBackupTimer = null; }
-}
-
-function updateCloudBackupUI() {
-  const enabled = localStorage.getItem(CLOUD_BACKUP_KEY) === '1';
-  const toggle  = document.getElementById('cloud-backup-toggle');
-  if (toggle) toggle.checked = enabled;
-
-  const last   = localStorage.getItem(CLOUD_BACKUP_LAST_KEY);
-  const lastEl = document.getElementById('cloud-backup-last-text');
-  if (lastEl) lastEl.textContent = last
-    ? 'Cloud backup terakhir: ' + new Date(last).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
-    : 'Belum ada cloud backup';
-}
-
-async function toggleCloudBackupList() {
-  const wrap = document.getElementById('cloud-backup-list-wrap');
-  if (!wrap) return;
-  const isOpen = wrap.style.display !== 'none';
-  wrap.style.display = isOpen ? 'none' : 'block';
-  if (!isOpen) await loadCloudBackupList();
-}
-
-async function loadCloudBackupList() {
-  const listEl  = document.getElementById('cloud-backup-list');
-  const emptyEl = document.getElementById('cloud-backup-empty');
-  if (!listEl) return;
-
-  const activeCloud = getActiveCloud();
-  const cloudClient = activeCloud ? buildSupabaseClient(activeCloud) : sb;
-  if (!cloudClient) { listEl.innerHTML = ''; if (emptyEl) emptyEl.style.display = 'block'; return; }
-
-  listEl.innerHTML = `<div style="text-align:center;padding:12px;font-size:12px;color:var(--muted);">⏳ Memuat...</div>`;
-
-  try {
-    const { data, error } = await cloudClient.from('system_backups')
-      .select('id, key, label, records, staff, created_at')
-      .neq('key', 'latest')
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      listEl.innerHTML = '';
-      if (emptyEl) emptyEl.style.display = 'block';
-      return;
-    }
-    if (emptyEl) emptyEl.style.display = 'none';
-    listEl.innerHTML = data.map(row => {
-      const ts = new Date(row.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
-      return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:10px 13px;display:flex;align-items:center;gap:10px;">
-        <span style="font-size:20px;flex-shrink:0;">☁️</span>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px;">${ts}</div>
-          <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;">${row.records ?? '–'} records · ${row.staff ?? '–'} staff</div>
-        </div>
-        <button onclick="restoreFromCloud('${row.id}')"
-          style="background:rgba(201,168,92,0.1);color:var(--accent);border:1px solid rgba(201,168,92,0.25);border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;">
-          Restore
-        </button>
-      </div>`;
-    }).join('');
-  } catch (err) {
-    console.error('[loadCloudBackupList]', err);
-    listEl.innerHTML = `<div style="text-align:center;padding:12px;font-size:12px;color:var(--danger);">❌ Gagal memuat riwayat</div>`;
-  }
-}
-
-async function restoreFromCloud(id) {
-  const activeCloud = getActiveCloud();
-  const cloudClient = activeCloud ? buildSupabaseClient(activeCloud) : sb;
-  if (!cloudClient) { toast('❌ Tidak ada cloud terhubung', 'error'); return; }
-  openConfirm(
-    '☁️ Restore dari Cloud',
-    'Pulihkan data dari backup cloud ini? Data saat ini akan ditimpa.',
-    async () => {
-      closeModal('modal-confirm');
-      toast('⏳ Mengambil data cloud...', 'info');
-      try {
-        const { data, error } = await cloudClient.from('system_backups').select('payload').eq('id', id).single();
-        if (error) throw error;
-        _pendingRestore = data.payload;
-        confirmRestore();
-      } catch (err) {
-        console.error('[restoreFromCloud]', err);
-        toast('❌ Gagal mengambil backup cloud', 'error');
-      }
-    }
-  );
-}
-
-// ════════════════════════════════════════
-//  CLOUD LOCATION MANAGEMENT
-// ════════════════════════════════════════
-const CLOUD_LOCATIONS_KEY = 'hat_cloud_locations';   // JSON array of {id,name,url,key}
-const CLOUD_ACTIVE_ID_KEY = 'hat_cloud_active_id';   // id of active cloud
-
-function getCloudLocations() {
-  try { return JSON.parse(localStorage.getItem(CLOUD_LOCATIONS_KEY) || '[]'); } catch { return []; }
-}
-function saveCloudLocations(arr) {
-  localStorage.setItem(CLOUD_LOCATIONS_KEY, JSON.stringify(arr));
-}
-function getActiveCloudId() {
-  return localStorage.getItem(CLOUD_ACTIVE_ID_KEY) || null;
-}
-function getActiveCloud() {
-  const id  = getActiveCloudId();
-  const all = getCloudLocations();
-  return all.find(c => c.id === id) || null;
-}
-
-// Build a one-shot Supabase client from a cloud location object
-function buildSupabaseClient(cloud) {
-  if (!cloud || !cloud.url || !cloud.key) return null;
-  try {
-    return window.supabase.createClient(cloud.url, cloud.key);
-  } catch(e) {
-    console.error('[buildSupabaseClient]', e);
-    return null;
-  }
-}
-
-// Activate a cloud location — reconnect sb & re-init
-function activateCloud(id) {
-  const all   = getCloudLocations();
-  const cloud = all.find(c => c.id === id);
-  if (!cloud) return;
-
-  localStorage.setItem(CLOUD_ACTIVE_ID_KEY, id);
-
-  // Rebuild global sb client
-  try {
-    supabaseClient = window.supabase.createClient(cloud.url, cloud.key);
-    console.log('✅ Switched cloud to:', cloud.name);
-  } catch(e) {
-    console.error('[activateCloud]', e);
-    toast('❌ Gagal menghubungkan ke cloud baru', 'error');
-    return;
-  }
-
-  updateCloudActiveCard();
-  renderCloudLocationList();
-  localStorage.setItem(CLOUD_BACKUP_LAST_KEY, ''); // reset last backup ts on switch
-  updateCloudBackupUI();
-  toast(`☁️ Cloud aktif: ${cloud.name}`, 'success');
-}
-
-function openCloudLocationManager() {
-  renderCloudLocationList();
-  document.getElementById('modal-cloud-location').classList.add('active');
-}
-
-function renderCloudLocationList() {
-  const listEl  = document.getElementById('cloud-location-list');
-  const emptyEl = document.getElementById('cloud-location-empty');
-  if (!listEl) return;
-
-  const all      = getCloudLocations();
-  const activeId = getActiveCloudId();
-
-  if (!all.length) {
-    listEl.innerHTML = '';
-    if (emptyEl) emptyEl.style.display = 'block';
-    return;
-  }
-  if (emptyEl) emptyEl.style.display = 'none';
-
-  listEl.innerHTML = all.map(c => {
-    const isActive = c.id === activeId;
-    const urlShort = c.url.replace('https://', '').split('.')[0];
-    return `<div style="background:${isActive ? 'rgba(201,168,92,0.08)' : 'var(--surface2)'};border:2px solid ${isActive ? 'var(--accent)' : 'var(--border)'};border-radius:12px;padding:11px 13px;display:flex;align-items:center;gap:10px;transition:border-color 0.2s;">
-      <div style="width:34px;height:34px;border-radius:10px;background:${isActive ? 'rgba(201,168,92,0.2)' : 'var(--surface)'};border:1px solid ${isActive ? 'rgba(201,168,92,0.3)' : 'var(--border)'};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">${isActive ? '✅' : '☁️'}</div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:700;color:${isActive ? 'var(--accent)' : 'var(--text)'};margin-bottom:2px;">${esc(c.name)}</div>
-        <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(urlShort)}.supabase.co</div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0;">
-        ${isActive
-          ? `<span style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.8px;text-align:center;">Aktif</span>`
-          : `<button onclick="activateCloud('${c.id}')" style="background:rgba(201,168,92,0.1);color:var(--accent);border:1px solid rgba(201,168,92,0.25);border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">Aktifkan</button>`
-        }
-        <button onclick="deleteCloudLocation('${c.id}')" style="background:rgba(224,112,112,0.08);color:var(--danger);border:1px solid rgba(224,112,112,0.2);border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">Hapus</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-async function testCloudConnection() {
-  const url = document.getElementById('cl-input-url')?.value.trim();
-  const key = document.getElementById('cl-input-key')?.value.trim();
-  const statusEl = document.getElementById('cl-add-status');
-
-  if (!url || !key) {
-    _clStatus('⚠️ Isi URL dan Anon Key terlebih dahulu', 'warn'); return;
-  }
-  _clStatus('⏳ Menguji koneksi...', 'info');
-  try {
-    const client = window.supabase.createClient(url, key);
-    const { error } = await client.from('system_backups').select('id').limit(1);
-    if (error && error.code !== 'PGRST116') throw error;
-    _clStatus('✅ Koneksi berhasil! Tabel system_backups ditemukan.', 'success');
-  } catch(e) {
-    _clStatus('❌ Koneksi gagal: ' + (e.message || 'Periksa URL & Key'), 'error');
-  }
-}
-
-function addCloudLocation() {
-  const name = document.getElementById('cl-input-name')?.value.trim();
-  const url  = document.getElementById('cl-input-url')?.value.trim();
-  const key  = document.getElementById('cl-input-key')?.value.trim();
-
-  if (!name) { _clStatus('⚠️ Isi nama / label cloud', 'warn'); return; }
-  if (!url || !url.startsWith('https://')) { _clStatus('⚠️ URL tidak valid. Harus dimulai dengan https://', 'warn'); return; }
-  if (!key || !key.startsWith('ey')) { _clStatus('⚠️ Anon Key tidak valid', 'warn'); return; }
-
-  const all = getCloudLocations();
-  // Check duplicate URL
-  if (all.find(c => c.url === url)) { _clStatus('⚠️ Cloud dengan URL ini sudah tersimpan', 'warn'); return; }
-
-  const id = 'cloud_' + Date.now();
-  all.push({ id, name, url, key });
-  saveCloudLocations(all);
-
-  // Clear form
-  ['cl-input-name', 'cl-input-url', 'cl-input-key'].forEach(i => { const el = document.getElementById(i); if (el) el.value = ''; });
-  _clStatus('✅ Cloud location tersimpan!', 'success');
-  setTimeout(() => { const el = document.getElementById('cl-add-status'); if (el) el.style.display = 'none'; }, 3000);
-
-  renderCloudLocationList();
-
-  // Auto-activate if no active cloud yet
-  if (!getActiveCloudId()) activateCloud(id);
-
-  toast('✅ Cloud location ditambahkan', 'success');
-}
-
-function deleteCloudLocation(id) {
-  const all     = getCloudLocations();
-  const cloud   = all.find(c => c.id === id);
-  const isActive = getActiveCloudId() === id;
-  if (!cloud) return;
-
-  openConfirm(
-    '🗑 Hapus Cloud Location',
-    `Hapus "${cloud.name}"?${isActive ? ' Ini adalah cloud aktif, koneksi akan kembali ke default.' : ''}`,
-    () => {
-      closeModal('modal-confirm');
-      const updated = all.filter(c => c.id !== id);
-      saveCloudLocations(updated);
-
-      if (isActive) {
-        localStorage.removeItem(CLOUD_ACTIVE_ID_KEY);
-        // fallback to built-in credentials
-        try {
-          supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        } catch(e) {}
-        updateCloudActiveCard();
-        updateCloudBackupUI();
-      }
-      renderCloudLocationList();
-      toast('🗑 Cloud location dihapus', 'info');
-    }
-  );
-}
-
-function _clStatus(msg, type) {
-  const el = document.getElementById('cl-add-status');
-  if (!el) return;
-  const styles = {
-    info:    'background:rgba(129,140,248,0.1);color:var(--accent2);border:1px solid rgba(129,140,248,0.2);',
-    success: 'background:rgba(74,222,128,0.1);color:var(--success);border:1px solid rgba(74,222,128,0.2);',
-    warn:    'background:rgba(212,165,84,0.1);color:var(--warning);border:1px solid rgba(212,165,84,0.25);',
-    error:   'background:rgba(224,112,112,0.12);color:var(--danger);border:1px solid rgba(224,112,112,0.25);',
-  };
-  el.style.cssText = `display:block;margin-bottom:10px;padding:8px 11px;border-radius:9px;font-size:11px;font-weight:600;line-height:1.5;${styles[type] || styles.info}`;
-  el.textContent = msg;
-}
-
-function updateCloudActiveCard() {
-  const cloud    = getActiveCloud();
-  const nameEl   = document.getElementById('cloud-active-name');
-  const urlEl    = document.getElementById('cloud-active-url');
-  const statusEl = document.getElementById('cloud-active-status');
-  if (!nameEl) return;
-
-  if (cloud) {
-    nameEl.textContent  = cloud.name;
-    urlEl.textContent   = cloud.url;
-    if (statusEl) { statusEl.textContent = '● Terhubung'; statusEl.style.color = 'var(--success)'; }
-  } else {
-    nameEl.textContent = 'Default (Built-in)';
-    urlEl.textContent  = SUPABASE_URL || '–';
-    if (statusEl) { statusEl.textContent = '● Default'; statusEl.style.color = 'var(--muted)'; }
-  }
-}
-
-function initCloudBackup() {
-  // On first load: if there's an active custom cloud, apply it
-  const cloud = getActiveCloud();
-  if (cloud) {
-    try {
-      supabaseClient = window.supabase.createClient(cloud.url, cloud.key);
-      console.log('✅ Restored active cloud:', cloud.name);
-    } catch(e) {
-      console.error('[initCloudBackup] restore cloud failed', e);
-    }
-  }
-  updateCloudActiveCard();
-  updateCloudBackupUI();
-  if (localStorage.getItem(CLOUD_BACKUP_KEY) === '1') startAutoBackupTimer();
 }
 
 // Holds parsed backup data before user confirms
@@ -8232,7 +8090,7 @@ function processRestoreFile(file) {
 
 function showRestorePreview(payload, file) {
   const d = payload.data;
-  // Support both v2 (localStorage) and v3 (Supabase) backup formats
+  // Support v2 backup format
   const totalRecs = d.attendance_records?.length
     ?? Object.values(d['hat_data'] || {}).reduce((s, a) => s + (Array.isArray(a) ? a.length : 0), 0);
   const staffArr  = d.staff        || d['hat_staff']  || [];
@@ -8264,27 +8122,31 @@ async function confirmRestore() {
   const depts   = d.departments || (d['hat_depts'] || []).filter(x => !x.isAdmin);
   const gps     = d.gps_config || null;
 
+  // Snapshot current DB as rollback safety
+  const _rollbackSnapshot = localStorage.getItem('hat_db');
   try {
-    // Clear and re-insert — use upsert where possible
     if (records.length) {
-      await sbQuery(() => sb.from('attendance_records').delete().neq('id', '00000000-0000-0000-0000-000000000000'));
-      await sbQuery(() => sb.from('attendance_records').insert(records));
+      await dbDelete('records');
+      await dbInsert('records', records);
     }
     if (staff.length) {
-      await sbQuery(() => sb.from('staff').delete().neq('id', '00000000-0000-0000-0000-000000000000'));
-      await sbQuery(() => sb.from('staff').insert(staff));
+      await dbDelete('staff');
+      await dbInsert('staff', staff);
     }
     if (shifts.length) {
-      await sbQuery(() => sb.from('shifts').delete().neq('id', '00000000-0000-0000-0000-000000000000'));
-      await sbQuery(() => sb.from('shifts').insert(shifts));
+      await dbDelete('shifts');
+      await dbInsert('shifts', shifts);
     }
     if (depts.length) {
-      await sbQuery(() => sb.from('departments').delete().eq('is_admin', false));
-      await sbQuery(() => sb.from('departments').insert(depts.map(d2 => ({ name: d2.name, pin: d2.pin || '', is_admin: false }))));
+      await dbDelete('logins', r => !r.is_admin);
+      await dbInsert('logins', depts.map(d2 => ({ name: d2.name, pin: d2.pin || '', is_admin: false, role: d2.role || 'staff' })));
     }
-    if (gps) await sbQuery(() => sb.from('app_settings').upsert({ key: 'gps_config', value: gps }));
+    if (gps) await dbUpsert('settings', { key: 'gps_config', value: gps }, 'key');
   } catch(err) {
-    toast('❌ Restore gagal: ' + err.message, 'error');
+    if (_rollbackSnapshot) {
+      try { localStorage.setItem('hat_db', _rollbackSnapshot); } catch(_) {}
+    }
+    toast('❌ Restore gagal: ' + err.message + ' — data dikembalikan ke semula', 'error');
     return;
   }
 
@@ -8293,7 +8155,7 @@ async function confirmRestore() {
   if (_ri) _ri.value = '';
   closeModal('modal-restore-preview');
   applyTheme();
-  await Promise.all([refreshAll(), renderLog(), renderDepts(), renderShifts(), renderStaffTable(), updateBackupStats()]);
+  await Promise.all([refreshAll(), renderLog(), renderDepts(), renderShifts(), renderStaffTable()]);
   await Promise.all([populateShiftSelect(), populateLoginDepts(), populateQRDeptSelect(), updateStaffList()]);
   toast('✅ Data berhasil di-restore!', 'success');
 }
@@ -8361,7 +8223,7 @@ const VERSIONS = [
       '🆕 Stat card Terlambat Hari Ini di Home',
       '🆕 KPI keterlambatan di Staff Summary modal',
       '🆕 Kolom late count & avg late di Analytics table',
-      '🆕 Shift filter di export sesuai Supabase data',
+      '🆕 Shift filter di export',
       '🎨 Redesign log item — shift color bar, skeleton loader',
       '🎨 Log filter card dengan search, date range, shift select',
       '🎨 Improved stat cards, today items, late pill badges',
@@ -8652,9 +8514,9 @@ const GPS_KEY = 'hat_gps';
 async function getGPSConfig() {
   const _default = { enabled: false, lat: null, lng: null, radius: 100 };
   try {
-    const { data, error } = await sbQuery(() =>
-      sb.from('app_settings').select('value').eq('key', 'gps_config').maybeSingle()
-    );
+    const _gpsCfgRow = await dbGetOne('settings', r => r.key === 'gps_config');
+    const data = _gpsCfgRow ? { value: _gpsCfgRow.value } : null;
+    const error = null;
     if (error || !data) {
       // Fallback: read from localStorage cache
       try { return JSON.parse(localStorage.getItem('hat_gps_cache')) || _default; } catch(_) {}
@@ -8673,8 +8535,7 @@ async function getGPSConfig() {
 async function saveGPSConfig(cfg) {
   try {
     localStorage.setItem('hat_gps_cache', JSON.stringify(cfg));
-    const { error } = await sbQuery(() => sb.from('app_settings').upsert({ key: 'gps_config', value: cfg }));
-    if (error) sbErr(error);
+    await dbUpsert('settings', { key: 'gps_config', value: cfg }, 'key');
   } catch (e) { console.error('[saveGPSConfig]', e); }
 }
 
@@ -8939,10 +8800,7 @@ function schedDayRangeClear() {
 // ── DB helpers ──
 async function getSchedules(year, month) {
   const key = `${year}-${String(month+1).padStart(2,'0')}`;
-  const { data } = await sbQuery(() =>
-    sb.from('schedules').select('*').eq('year_month', key)
-  );
-  return data || [];
+  return await dbGetAll('schedules', r => r.year_month === key);
 }
 
 async function setScheduleCell(staffId, staffName, staffDept, day, code) {
@@ -8952,12 +8810,12 @@ async function setScheduleCell(staffId, staffName, staffDept, day, code) {
   const cellId = `${staffId}_${key}_${day}`;
 
   if (!code) {
-    await sbQuery(() => sb.from('schedules').delete().eq('id', cellId));
+    await dbDelete('schedules', r => r.id === cellId);
   } else {
-    await sbQuery(() => sb.from('schedules').upsert({
+    await dbUpsert('schedules', {
       id: cellId, staff_id: staffId, staff_name: staffName,
       dept: staffDept, year_month: key, day, shift_code: code
-    }));
+    });
   }
 }
 
@@ -9346,7 +9204,7 @@ function schedGoToday() {
 }
 
 // ════════════════════════════════════════
-//  SHIFT SYNC: keep SHIFT_CODES/SHIFT_MAP in sync with Supabase shifts table
+//  SHIFT SYNC: keep SHIFT_CODES/SHIFT_MAP in sync with shifts
 //  Called after any save in kelola shift, and before opening picker
 // ════════════════════════════════════════
 async function syncShiftCodesFromDB() {
@@ -9523,8 +9381,8 @@ async function openSchedStaffPopup(staffId, staffName, staffDept) {
   el('ssp-dept', staffDept ? '🏷️ ' + staffDept : '');
 
   // ── Today's scheduled shift ──
-  const todayD   = new Date().getDate();
-  const todayCode = schedMap[`${staffId}_${todayD}`] || null;
+  const todayStr2  = new Date().toISOString().split('T')[0];
+  const todayCode = schedMap[`${staffId}_${todayStr2}`] || null;
   const todayWrap = document.getElementById('ssp-today-wrap');
   const todayBadge = document.getElementById('ssp-today-badge');
   if (todayBadge && todayWrap) {
@@ -9794,7 +9652,7 @@ function _initPpmCanvas() {
     return { x: (src.clientX - rect.left) * scaleX, y: (src.clientY - rect.top) * scaleY };
   }
 
-  function onStart(e) {
+  function _ppmOnStart(e) {
     e.preventDefault();
     if (_ppmLockUntil > Date.now()) return;
     const pos = _pos(e);
@@ -9806,7 +9664,7 @@ function _initPpmCanvas() {
     _ppmShowError('');
     _ppmDraw();
   }
-  function onMove(e) {
+  function _ppmOnMove(e) {
     e.preventDefault();
     if (!_ppmPattern.drawing) return;
     _ppmPattern.cur = _pos(e);
@@ -9817,7 +9675,7 @@ function _initPpmCanvas() {
     }
     _ppmDraw();
   }
-  function onEnd(e) {
+  function _ppmOnEnd(e) {
     e.preventDefault();
     _ppmPattern.drawing = false;
     _ppmPattern.cur     = null;
@@ -9836,15 +9694,15 @@ function _initPpmCanvas() {
   canvas.removeEventListener('touchstart', canvas._ppmStart);
   canvas.removeEventListener('touchmove',  canvas._ppmMove);
   canvas.removeEventListener('touchend',   canvas._ppmEnd);
-  canvas._ppmStart = onStart;
-  canvas._ppmMove  = onMove;
-  canvas._ppmEnd   = onEnd;
-  canvas.addEventListener('mousedown',  onStart, { passive: false });
-  canvas.addEventListener('mousemove',  onMove,  { passive: false });
-  canvas.addEventListener('mouseup',    onEnd,   { passive: false });
-  canvas.addEventListener('touchstart', onStart, { passive: false });
-  canvas.addEventListener('touchmove',  onMove,  { passive: false });
-  canvas.addEventListener('touchend',   onEnd,   { passive: false });
+  canvas._ppmStart = _ppmOnStart;
+  canvas._ppmMove  = _ppmOnMove;
+  canvas._ppmEnd   = _ppmOnEnd;
+  canvas.addEventListener('mousedown',  _ppmOnStart, { passive: false });
+  canvas.addEventListener('mousemove',  _ppmOnMove,  { passive: false });
+  canvas.addEventListener('mouseup',    _ppmOnEnd,   { passive: false });
+  canvas.addEventListener('touchstart', _ppmOnStart, { passive: false });
+  canvas.addEventListener('touchmove',  _ppmOnMove,  { passive: false });
+  canvas.addEventListener('touchend',   _ppmOnEnd,   { passive: false });
 
   _ppmDraw();
 }
@@ -9924,217 +9782,13 @@ function _ppmVerify() {
     }
   }
 }
+let _toastTimer = null;
 function toast(msg, type = 'info') {
   const el = document.getElementById('toast');
   el.textContent = msg;
   el.className = 'show ' + type;
-  clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => { el.className = ''; }, 2800);
-}
-
-// ══════════════════════════════════════════════════════════
-//  WEBAUTHN / BIOMETRIC HELPERS
-// ══════════════════════════════════════════════════════════
-
-// rpId: use current hostname (works on localhost and production)
-const FP_RP_ID = location.hostname || 'localhost';
-const FP_STORE_KEY = 'hat_fp_creds';
-
-function _fpLoadStore() {
-  try { return JSON.parse(localStorage.getItem(FP_STORE_KEY) || '{}'); }
-  catch(_) { return {}; }
-}
-function _fpSaveStore(store) {
-  localStorage.setItem(FP_STORE_KEY, JSON.stringify(store));
-}
-
-// Check if device supports WebAuthn platform authenticator
-async function _fpPlatformAvailable() {
-  try {
-    if (!window.PublicKeyCredential) return false;
-    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-  } catch(_) { return false; }
-}
-
-// Get stored credential for a staff member
-function _fpCredForStaff(staffName) {
-  const store = _fpLoadStore();
-  return store[staffName] || null;
-}
-
-// Build allowCredentials array for navigator.credentials.get()
-function _fpAllowCreds(cred) {
-  if (!cred || !cred.id) return [];
-  return [{
-    id: Uint8Array.from(atob(cred.id), c => c.charCodeAt(0)),
-    type: 'public-key',
-    transports: cred.transports || ['internal'],
-  }];
-}
-
-// Register a new biometric credential for a staff member
-async function registerFingerprint(staffName) {
-  try {
-    const challenge = crypto.getRandomValues(new Uint8Array(32));
-    const userId    = crypto.getRandomValues(new Uint8Array(16));
-
-    const cred = await navigator.credentials.create({
-      publicKey: {
-        challenge,
-        rp: { id: FP_RP_ID, name: 'DKeyIn Attendance' },
-        user: {
-          id: userId,
-          name: staffName,
-          displayName: staffName,
-        },
-        pubKeyCredParams: [
-          { type: 'public-key', alg: -7 },   // ES256
-          { type: 'public-key', alg: -257 },  // RS256
-        ],
-        authenticatorSelection: {
-          authenticatorAttachment: 'platform',
-          userVerification: 'required',
-          residentKey: 'discouraged',
-        },
-        timeout: 60000,
-        attestation: 'none',
-      }
-    });
-
-    // Store credential id (base64) and transports
-    const b64id = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
-    const transports = cred.response.getTransports ? cred.response.getTransports() : ['internal'];
-    const store = _fpLoadStore();
-    store[staffName] = { id: b64id, transports };
-    _fpSaveStore(store);
-    toast('✅ Biometrik berhasil didaftarkan', 'success');
-    return true;
-  } catch(e) {
-    console.error('[registerFingerprint]', e);
-    if (e.name === 'NotAllowedError') toast('❌ Pendaftaran dibatalkan', 'error');
-    else toast(`❌ Gagal daftar biometrik: ${e.message}`, 'error');
-    return false;
-  }
-}
-
-// ══════════════════════════════════════════════════════════
-//  STAFF BIOMETRIC PUNCH  (fingerprint gate before punch)
-//  Staff role: punch in/out requires device biometric verify.
-//  Admin role: buttons call punchIn/punchOut directly (no gate).
-// ══════════════════════════════════════════════════════════
-
-// Update the biometric status banner shown on staff punch screen
-async function updateStaffBiometricBanner() {
-  if (isManagerOrAdmin()) return;
-  const banner = document.getElementById('staff-biometric-banner');
-  if (!banner) return;
-
-  const staffName = sessionStorage.getItem('hat_active_dept') || '';
-  const platform  = await _fpPlatformAvailable();
-  const cred      = staffName ? _fpCredForStaff(staffName) : null;
-  const hasCred   = !!cred;
-
-  if (!platform) {
-    // Device doesn't support biometric — hide banner silently
-    banner.style.display = 'none';
-    return;
-  }
-
-  banner.style.display = 'flex';
-
-  if (!hasCred) {
-    banner.style.cssText += ';background:rgba(201,168,92,0.08);border:1px solid rgba(201,168,92,0.25);color:var(--accent);';
-    banner.innerHTML = `
-      <span style="font-size:18px;flex-shrink:0;">🔐</span>
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:700;">Biometrik belum didaftarkan</div>
-        <div style="font-size:11px;font-weight:400;opacity:0.75;margin-top:1px;">Gunakan sidik jari / wajah perangkat ini untuk keamanan punch</div>
-      </div>
-      <button onclick="staffRegisterBiometric()" style="padding:6px 12px;border-radius:8px;border:1px solid rgba(201,168,92,0.4);background:rgba(201,168,92,0.12);color:var(--accent);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">Daftar</button>`;
-  } else {
-    // Show transport hint (what kind of biometric is registered)
-    const transports = cred.transports || [];
-    const hint = transports.includes('hybrid') ? 'Passkey' :
-                 transports.includes('internal') ? 'Biometrik Perangkat' : 'Biometrik';
-    banner.style.cssText += ';background:rgba(90,191,138,0.08);border:1px solid rgba(90,191,138,0.20);color:var(--success);';
-    banner.innerHTML = `<span style="font-size:18px;flex-shrink:0;">✅</span><span>${hint} aktif — verifikasi diperlukan saat punch</span>`;
-  }
-
-  // Update punch button sub-labels
-  const inSub  = document.getElementById('punch-in-sub');
-  const outSub = document.getElementById('punch-out-sub');
-  if (inSub)  inSub.textContent  = (platform && hasCred) ? '🔐 Verifikasi & absen masuk'  : 'Tap untuk absen masuk';
-  if (outSub) outSub.textContent = (platform && hasCred) ? '🔐 Verifikasi & absen keluar' : 'Tap untuk absen keluar';
-}
-
-// Register biometric from punch screen
-async function staffRegisterBiometric() {
-  const staffName = sessionStorage.getItem('hat_active_dept') || '';
-  if (!staffName) { toast('❌ Nama staff tidak ditemukan', 'error'); return; }
-  await registerFingerprint(staffName);
-  await updateStaffBiometricBanner();
-}
-
-// Gate function: verify device biometric, then punch
-async function staffBiometricPunch(direction) {
-  // Admin/manager: no biometric gate
-  if (isManagerOrAdmin()) {
-    if (direction === 'in') await punchIn();
-    else                    await punchOut();
-    return;
-  }
-
-  const staffName = sessionStorage.getItem('hat_active_dept') || '';
-  const platform  = await _fpPlatformAvailable();
-  const cred      = staffName ? _fpCredForStaff(staffName) : null;
-
-  // No biometric on device or not registered → punch without gate
-  if (!platform || !cred) {
-    if (direction === 'in') await punchIn();
-    else                    await punchOut();
-    return;
-  }
-
-  // Disable buttons during verification
-  const btnIn  = document.getElementById('punch-btn-in');
-  const btnOut = document.getElementById('punch-btn-out');
-  if (btnIn)  btnIn.disabled  = true;
-  if (btnOut) btnOut.disabled = true;
-  const subEl = document.getElementById(`punch-${direction}-sub`);
-  if (subEl) subEl.textContent = '⏳ Verifikasi biometrik...';
-
-  try {
-    const challenge = crypto.getRandomValues(new Uint8Array(32));
-
-    // Use device-reported transports for best reliability
-    await navigator.credentials.get({
-      publicKey: {
-        challenge,
-        rpId: FP_RP_ID,
-        allowCredentials: _fpAllowCreds(cred),
-        userVerification: 'required',
-        timeout: 60000,
-      }
-    });
-
-    // ✅ Device biometric verified
-    if (subEl) subEl.textContent = '✅ Terverifikasi!';
-    vibrate([20, 10, 40]);
-    setTimeout(() => updateStaffBiometricBanner(), 1500);
-
-    if (direction === 'in') await punchIn();
-    else                    await punchOut();
-
-  } catch (e) {
-    console.error('[staffBiometricPunch]', e);
-    toast(e.name === 'NotAllowedError'
-      ? '❌ Verifikasi dibatalkan'
-      : `❌ Verifikasi gagal: ${e.message}`, 'error');
-    await updateStaffBiometricBanner();
-  } finally {
-    if (btnIn)  btnIn.disabled  = false;
-    if (btnOut) btnOut.disabled = false;
-  }
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = ''; _toastTimer = null; }, 2800);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -10144,7 +9798,7 @@ const TOPBAR_TEXT_KEY = 'hat_topbar_text';
 
 function loadTopbarText() {
   const saved = localStorage.getItem(TOPBAR_TEXT_KEY) || '';
-  const disp  = document.getElementById('topbar-text-display');
+  const disp  = document.getElementById('topbar-title');
   if (!disp) return;
   if (saved) {
     disp.textContent = saved;
@@ -10158,7 +9812,7 @@ function loadTopbarText() {
 
 function handleTopbarTextClick() {
   if (!isAdmin()) return;
-  const disp  = document.getElementById('topbar-text-display');
+  const disp  = document.getElementById('topbar-title');
   const input = document.getElementById('topbar-text-input');
   if (!disp || !input) return;
   const saved = localStorage.getItem(TOPBAR_TEXT_KEY) || '';
@@ -10171,7 +9825,7 @@ function handleTopbarTextClick() {
 
 function saveTopbarText() {
   const input = document.getElementById('topbar-text-input');
-  const disp  = document.getElementById('topbar-text-display');
+  const disp  = document.getElementById('topbar-title');
   if (!input || !disp) return;
   const val = input.value.trim();
   if (val) localStorage.setItem(TOPBAR_TEXT_KEY, val);
@@ -10313,9 +9967,6 @@ function _stopQrTabClock() {
 }
 
 async function qrTabPunch(mode) {
-  const ok = await checkGPSBeforePunch();
-  if (!ok) return;
-
   _qrTabPunchMode = mode;
   const readerEl = document.getElementById('qr-tab-reader');
   const statusEl = document.getElementById('qr-tab-status');
@@ -10361,29 +10012,25 @@ async function qrTabPunch(mode) {
     const timeStr = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
 
     if (_qrTabPunchMode === 'in') {
-      const { data: existing } = await sbQuery(() => sb
-        .from('attendance_records').select('id')
-        .eq('staff_name', scannedName).eq('branch', currentBranch())
-        .eq('date', date).is('punch_out', null).maybeSingle());
+      const existing = await dbGetOne('records', r =>
+        r.staff_name === scannedName && r.branch === currentBranch() &&
+        r.date === date && (r.punch_out === null || r.punch_out === undefined));
 
       if (existing) {
         showStatus(`⚠️ ${scannedName} sudah punch in!`, 'background:rgba(251,191,36,0.1);color:var(--warning);border:1px solid rgba(251,191,36,0.25);');
         setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; if (btnIn) btnIn.style.opacity='1'; if (btnOut) btnOut.style.opacity='1'; _qrTabPunchMode=null; }, 2500);
         return;
       }
-      const { error } = await sbQuery(() => sb.from('attendance_records').insert({
-        staff_name: scannedName, branch: currentBranch(), date, shift, punch_in: now, punch_out: null
-      }));
-      if (error) { sbErr(error); return; }
+      try { await dbInsert('records', { staff_name: scannedName, branch: currentBranch(), date, shift, punch_in: now, punch_out: null }); }
+      catch(e) { dbErr(e.message); return; }
       showStatus(`✅ PUNCH IN — ${timeStr}`, 'background:rgba(74,222,128,0.1);color:var(--success);border:1px solid rgba(74,222,128,0.25);');
       _showPunchNotif({ name: scannedName, action: 'IN', time: timeStr, extra: shift });
       vibrate([30, 20, 60]);
     } else {
-      const { data: openRecord } = await sbQuery(() => sb
-        .from('attendance_records').select('id, punch_in')
-        .eq('staff_name', scannedName).eq('branch', currentBranch())
-        .eq('date', date).is('punch_out', null)
-        .order('punch_in', { ascending: false }).limit(1).maybeSingle());
+      const openRecord = (await dbGetAll('records',
+        r => r.staff_name === scannedName && r.branch === currentBranch() &&
+             r.date === date && (r.punch_out === null || r.punch_out === undefined),
+        'punch_in', false))[0] ?? null;
 
       if (!openRecord) {
         showStatus('❌ Belum ada punch in aktif', 'background:rgba(248,113,113,0.1);color:var(--danger);border:1px solid rgba(248,113,113,0.25);');
@@ -10400,8 +10047,8 @@ async function qrTabPunch(mode) {
         showWorkWarning(scannedName, wh > 0 ? `${wh}j ${wm}m` : `${wm}m`, rh > 0 ? `${rh}j ${rm}m` : `${rm}m`);
         return;
       }
-      const { error } = await sbQuery(() => sb.from('attendance_records').update({ punch_out: now }).eq('id', openRecord.id));
-      if (error) { sbErr(error); return; }
+      try { await dbUpdate('records', r => r.id === openRecord.id, { punch_out: now }); }
+      catch(e) { dbErr(e.message); return; }
       const dur = fmtDuration(Date.now() - new Date(openRecord.punch_in).getTime());
       showStatus(`🔴 PUNCH OUT — ${timeStr}`, 'background:rgba(248,113,113,0.1);color:var(--danger);border:1px solid rgba(248,113,113,0.25);');
       _showPunchNotif({ name: scannedName, action: 'OUT', time: timeStr, extra: dur });
